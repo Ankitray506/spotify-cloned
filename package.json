@@ -1,0 +1,15 @@
+{
+  "name": "spotify-3d-clone",
+  "version": "1.0.0",
+  "description": "Full-Stack 3D Spatial Music Streaming Platform (Spotify Clone)",
+  "scripts": {
+    "start": "node backend/server.js",
+    "backend": "node backend/server.js",
+    "frontend": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "install:all": "cd backend && npm install && cd ../frontend && npm install"
+  },
+  "keywords": ["spotify", "3d", "music-player", "threejs", "webgl", "fullstack"],
+  "author": "",
+  "license": "ISC"
+}
