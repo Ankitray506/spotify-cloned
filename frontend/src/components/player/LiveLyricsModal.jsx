@@ -118,10 +118,11 @@ export default function LiveLyricsModal() {
 
         // Fetch live synced lyrics via backend proxy
         if (!resData) {
+          const queryArtist = (artistName && !['Unknown Artist', 'Featured Artist', 'AURA Artist'].includes(artistName)) ? artistName : '';
           const res = await axiosClient.get('/live/lyrics', {
             params: {
               title: currentSong.title,
-              artist: artistName,
+              artist: queryArtist,
               duration: Math.round(duration || currentSong.duration || 0)
             }
           });
@@ -304,23 +305,33 @@ export default function LiveLyricsModal() {
             </div>
           </div>
         ) : lyricsData.unavailable ? (
-          /* Empty / Unavailable State */
+          /* Empty / Unavailable State with Google Lyrics Quick Search */
           <div className="my-auto py-12 flex flex-col items-center justify-center text-center max-w-md mx-auto">
-            <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center mb-4">
+            <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center mb-4 shadow-lg shadow-cyan-500/10">
               <Disc3 className="w-8 h-8 text-cyan-400 animate-spin-slow" />
             </div>
             <h3 className="text-xl font-bold text-white mb-2 font-['Space_Grotesk']">
-              Lyrics Not Available
+              Live Lyrics Syncing Unavailable
             </h3>
             <p className="text-xs sm:text-sm text-slate-400 leading-relaxed mb-6">
-              We couldn't find timestamped lyrics for <strong className="text-white">"{currentSong.title}"</strong> yet. Sing along with the 3D vibes!
+              Timestamped synced LRC isn't available in public databases for <strong className="text-white">"{currentSong.title}"</strong> yet. Enjoy the spatial 3D audio or look up full lyrics online!
             </p>
-            <button
-              onClick={() => setIsLyricsOpen(false)}
-              className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-mono uppercase tracking-wider transition-all"
-            >
-              Back to Player
-            </button>
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <a
+                href={`https://www.google.com/search?q=${encodeURIComponent(`${currentSong.title} ${artistName} lyrics`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-teal-400 hover:from-cyan-400 hover:to-teal-300 text-black font-bold text-xs uppercase tracking-wider transition-all shadow-md shadow-cyan-500/20"
+              >
+                Search Full Lyrics on Web
+              </a>
+              <button
+                onClick={() => setIsLyricsOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-mono uppercase tracking-wider transition-all"
+              >
+                Back to Stage
+              </button>
+            </div>
           </div>
         ) : lyricsData.isSynced ? (
           /* Synced Lyrics List */

@@ -18,16 +18,74 @@ import SupportFeedbackModal from '../components/common/SupportFeedbackModal';
 import { rankSongsForUser, getTopUserGenres } from '../services/mlRecommender';
 import { Disc3, Sparkles, Flame, Radio, Plus, Upload, Play, Music, Search, RefreshCw, Zap } from 'lucide-react';
 
+const FALLBACK_TRENDING_HITS = [
+  {
+    _id: "qcEf8GY8",
+    id: "qcEf8GY8",
+    title: "Apna Bana Le",
+    artist: { username: "Sachin-Jigar, Arijit Singh" },
+    album: "Bhediya / Trending Love",
+    duration: 261,
+    uri: "https://aac.saavncdn.com/675/1456dc2903d0fb4465d2d2904008803b_320.mp4",
+    cover: "https://c.saavncdn.com/675/Trending-Love-Songs-Hindi-2026-20260506185328-500x500.jpg",
+    isLive: true
+  },
+  {
+    _id: "BtmajL_i",
+    id: "BtmajL_i",
+    title: "Vaaroon Trending Version",
+    artist: { username: "Anand Bhaskar, Romy" },
+    album: "Vaaroon Hits",
+    duration: 151,
+    uri: "https://aac.saavncdn.com/037/5c1b6f34a94c685bd67cb567bf688e6a_320.mp4",
+    cover: "https://c.saavncdn.com/037/Vaaroon-Trending-Version-Hindi-2025-20250709213623-500x500.jpg",
+    isLive: true
+  },
+  {
+    _id: "UPJYO3v0",
+    id: "UPJYO3v0",
+    title: "Ishq de Fanniyar - Female",
+    artist: { username: "Shaarib Toshi, Jyotica Tangri" },
+    album: "Fukrey Returns / Trending",
+    duration: 177,
+    uri: "https://aac.saavncdn.com/675/f1f48664e51db48f0d26a40d42d515a8_320.mp4",
+    cover: "https://c.saavncdn.com/675/Trending-Love-Songs-Hindi-2026-20260506185328-500x500.jpg",
+    isLive: true
+  },
+  {
+    _id: "RPY7kBp3",
+    id: "RPY7kBp3",
+    title: "Lae Dooba",
+    artist: { username: "Rochak Kohli, Sunidhi Chauhan" },
+    album: "Aiyaary / Trending Hits",
+    duration: 229,
+    uri: "https://aac.saavncdn.com/675/967b4606fe77beb6b080abd334f5742d_320.mp4",
+    cover: "https://c.saavncdn.com/675/Trending-Love-Songs-Hindi-2026-20260506185328-500x500.jpg",
+    isLive: true
+  },
+  {
+    _id: "kHS4uHli",
+    id: "kHS4uHli",
+    title: "Vaaroon",
+    artist: { username: "Anand Bhaskar" },
+    album: "Trending Love Songs",
+    duration: 350,
+    uri: "https://aac.saavncdn.com/675/ff5cbe7f8c09da84cb039852eae36fce_320.mp4",
+    cover: "https://c.saavncdn.com/675/Trending-Love-Songs-Hindi-2026-20260506185328-500x500.jpg",
+    isLive: true
+  }
+];
+
 export default function HomePage() {
   const { isAuthenticated, isArtist, user } = useAuth();
   const { playSong, currentSong, isPlaying, toggleFullscreen3D } = useMusic();
 
   const [communitySongs, setCommunitySongs] = useState([]);
-  const [liveSongs, setLiveSongs] = useState([]);
+  const [liveSongs, setLiveSongs] = useState(FALLBACK_TRENDING_HITS);
   const [relatedSongs, setRelatedSongs] = useState([]);
   const [albums, setAlbums] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeGenre, setActiveGenre] = useState('maithili'); // Default to Maithili as requested!
+  const [activeGenre, setActiveGenre] = useState(null); // Defaults to Top Trending Hits for new visitors!
   const [loadingLive, setLoadingLive] = useState(false);
   const [loadingCommunity, setLoadingCommunity] = useState(true);
 
@@ -73,7 +131,7 @@ export default function HomePage() {
         let endpoint = '';
         if (searchTerm && searchTerm.trim()) {
           endpoint = `/live/search?q=${encodeURIComponent(searchTerm.trim())}&limit=25`;
-        } else if (activeGenre) {
+        } else if (activeGenre && activeGenre !== 'trending') {
           endpoint = `/live/genre?genre=${encodeURIComponent(activeGenre)}&limit=20`;
         } else {
           endpoint = `/live/trending`;
@@ -81,7 +139,14 @@ export default function HomePage() {
 
         const res = await axiosClient.get(endpoint);
         if (!isCancelled && res.data) {
-          setLiveSongs(res.data.songs || []);
+          const fetched = res.data.songs || [];
+          if (fetched.length > 0) {
+            setLiveSongs(fetched);
+          } else if (!searchTerm && (!activeGenre || activeGenre === 'trending')) {
+            setLiveSongs(FALLBACK_TRENDING_HITS);
+          } else {
+            setLiveSongs([]);
+          }
           setRelatedSongs(res.data.relatedSuggestions || []);
         }
       } catch (err) {
@@ -228,9 +293,9 @@ export default function HomePage() {
               <h2 className="text-xl font-bold tracking-tight text-white font-['Space_Grotesk'] capitalize">
                 {searchTerm
                   ? `Live Results for "${searchTerm}"`
-                  : activeGenre
+                  : activeGenre && activeGenre !== 'trending'
                   ? `${activeGenre} Spotlight Hits`
-                  : 'Trending Hits'}
+                  : '🔥 India Top Trending Hits'}
               </h2>
               <span className="text-xs font-mono text-slate-400">({liveSongs.length} Tracks)</span>
             </div>

@@ -103,6 +103,34 @@ async function adminResetPassword(req, res) {
     }
 }
 
+// DELETE /api/admin/users/:id (Permanently delete user and their uploads)
+async function deleteUser(req, res) {
+    try {
+        const { id } = req.params;
+        const targetUser = await userModel.findById(id);
+        if (!targetUser) {
+            return res.status(404).json({ message: "User not found" });
+        }
+        if (targetUser.email === 'ankitrayh6475@gmail.com' || targetUser.username === 'ankit-ray') {
+            return res.status(400).json({ message: "Cannot delete master administrator account!" });
+        }
+
+        // Remove user's uploaded tracks
+        await musicModel.deleteMany({ artist: id });
+        
+        // Remove user account
+        await userModel.findByIdAndDelete(id);
+
+        return res.status(200).json({
+            message: `User ${targetUser.username} (${targetUser.email}) permanently deleted.`,
+            deletedUserId: id
+        });
+    } catch (err) {
+        console.error("deleteUser Error:", err);
+        return res.status(500).json({ message: "Failed to delete user account" });
+    }
+}
+
 // POST /api/admin/feedback (Submit feedback or password recovery request)
 async function submitFeedback(req, res) {
     try {
@@ -154,6 +182,7 @@ module.exports = {
     getAdminStats,
     toggleBlockUser,
     adminResetPassword,
+    deleteUser,
     submitFeedback,
     updateFeedbackStatus
 };

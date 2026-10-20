@@ -11,6 +11,7 @@ router.post("/feedback", adminController.submitFeedback);
 router.get("/stats", authMiddleware.authAdmin, adminController.getAdminStats);
 router.put("/users/:id/block", authMiddleware.authAdmin, adminController.toggleBlockUser);
 router.put("/users/:id/reset-password", authMiddleware.authAdmin, adminController.adminResetPassword);
+router.delete("/users/:id", authMiddleware.authAdmin, adminController.deleteUser);
 router.put("/feedback/:id", authMiddleware.authAdmin, adminController.updateFeedbackStatus);
 
 module.exports = router;

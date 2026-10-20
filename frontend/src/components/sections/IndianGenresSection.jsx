@@ -3,14 +3,14 @@ import { Sparkles, Radio, Flame, Heart } from 'lucide-react';
 
 export const INDIAN_GENRES = [
   {
-    id: 'maithili',
-    name: 'Maithili Lokgeet & Hits',
-    devanagari: 'मैथिली लोकगीत',
-    desc: 'Mithila soul, Sharda Sinha classics & modern pop',
-    emoji: '🪕',
-    gradient: 'from-amber-500 via-orange-600 to-red-600',
-    border: 'hover:border-amber-400/50',
-    badge: 'Mithila Special'
+    id: 'trending',
+    name: 'Top Trending & Hits',
+    devanagari: 'ट्रेंडिंग चार्ट्स',
+    desc: 'India’s viral hits, chartbusters, romance & party anthems',
+    emoji: '🔥',
+    gradient: 'from-emerald-400 via-teal-500 to-cyan-500',
+    border: 'hover:border-emerald-400/50',
+    badge: 'Popular'
   },
   {
     id: 'bollywood',
@@ -20,7 +20,7 @@ export const INDIAN_GENRES = [
     emoji: '🎬',
     gradient: 'from-rose-500 via-pink-600 to-purple-600',
     border: 'hover:border-rose-400/50',
-    badge: 'Top Trending'
+    badge: 'Blockbusters'
   },
   {
     id: 'punjabi',
@@ -31,6 +31,16 @@ export const INDIAN_GENRES = [
     gradient: 'from-yellow-400 via-amber-500 to-orange-600',
     border: 'hover:border-yellow-400/50',
     badge: 'Party Energy'
+  },
+  {
+    id: 'maithili',
+    name: 'Maithili Lokgeet & Hits',
+    devanagari: 'मैथिली लोकगीत',
+    desc: 'Mithila soul, Sharda Sinha classics & modern pop',
+    emoji: '🪕',
+    gradient: 'from-amber-500 via-orange-600 to-red-600',
+    border: 'hover:border-amber-400/50',
+    badge: 'Mithila Special'
   },
   {
     id: 'bhojpuri',
@@ -123,7 +133,7 @@ export default function IndianGenresSection({ activeGenre, onSelectGenre }) {
       {/* Genre Cards Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-3.5 sm:gap-4">
         {INDIAN_GENRES.map((genre) => {
-          const isSelected = activeGenre === genre.id;
+          const isSelected = activeGenre === genre.id || (!activeGenre && genre.id === 'trending');
           return (
             <div
               key={genre.id}

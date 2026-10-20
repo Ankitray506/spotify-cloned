@@ -32,7 +32,7 @@ export default function Fullscreen3DPlayer() {
 
   if (!isFullscreen3D || !currentSong) return null;
 
-  const cover = getCoverImage(currentSong._id || currentSong.title);
+  const cover = currentSong?.cover || getCoverImage(currentSong._id || currentSong.title);
   const progressPercent = duration ? (currentTime / duration) * 100 : 0;
 
   const handleSeekChange = (e) => {
@@ -43,7 +43,7 @@ export default function Fullscreen3DPlayer() {
 
   const artistName = typeof currentSong?.artist === 'object'
     ? currentSong?.artist?.username || 'Unknown Artist'
-    : 'Featured Artist';
+    : (currentSong?.artist || 'Featured Artist');
 
   return (
     <div className="fixed inset-0 z-50 bg-[#05070e]/95 backdrop-blur-3xl flex flex-col justify-between p-4 sm:p-8 animate-fade-in select-none">

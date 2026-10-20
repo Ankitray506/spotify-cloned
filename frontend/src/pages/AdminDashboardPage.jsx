@@ -7,7 +7,7 @@ import GlassCard from '../components/common/GlassCard';
 import { 
   ShieldCheck, Users, Headphones, Sparkles, Disc3, MessageSquare, 
   RefreshCw, CheckCircle2, Clock, AlertTriangle, ArrowLeft, Trophy,
-  Ban, CheckCircle, Search, KeyRound, X, ShieldAlert
+  Ban, CheckCircle, Search, KeyRound, X, ShieldAlert, Trash2
 } from 'lucide-react';
 
 export default function AdminDashboardPage() {
@@ -66,6 +66,19 @@ export default function AdminDashboardPage() {
       fetchStats();
     } catch (err) {
       alert(err.response?.data?.message || `Failed to ${action} user`);
+    }
+  };
+
+  const handleDeleteUser = async (targetUser) => {
+    if (!window.confirm(`⚠️ PERMANENT DELETION WARNING:\n\nAre you sure you want to permanently delete user "${targetUser.username}" (${targetUser.email})?\n\nThis will remove their account and all uploaded tracks from the database. This action CANNOT be undone.`)) {
+      return;
+    }
+
+    try {
+      await axiosClient.delete(`/admin/users/${targetUser._id}`);
+      fetchStats();
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to delete user account");
     }
   };
 
@@ -365,7 +378,17 @@ export default function AdminDashboardPage() {
                                 }`}
                               >
                                 <Ban className="w-3 h-3" />
-                                <span>{u.isBlocked ? 'Unblock' : 'Block User'}</span>
+                                <span>{u.isBlocked ? 'Unblock' : 'Block'}</span>
+                              </button>
+
+                              {/* Permanent Delete User Button */}
+                              <button
+                                onClick={() => handleDeleteUser(u)}
+                                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 border bg-red-600/20 hover:bg-red-600/30 border-red-500/40 text-red-300 transition-colors"
+                                title="Permanently delete user from database"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                <span>Delete</span>
                               </button>
                             </div>
                           )}

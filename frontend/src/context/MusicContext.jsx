@@ -97,9 +97,22 @@ export function MusicProvider({ children }) {
     return new Uint8Array(64).fill(0);
   }, [isPlaying]);
 
+  // Refs to avoid stale closures in audio event listeners
+  const queueRef = useRef([]);
+  const queueIndexRef = useRef(0);
+  const isShuffleRef = useRef(false);
+  const isLoopRef = useRef(false);
+  const nextSongRef = useRef(null);
+
+  useEffect(() => { queueRef.current = queue; }, [queue]);
+  useEffect(() => { queueIndexRef.current = queueIndex; }, [queueIndex]);
+  useEffect(() => { isShuffleRef.current = isShuffle; }, [isShuffle]);
+  useEffect(() => { isLoopRef.current = isLoop; }, [isLoop]);
+
   // Audio element event listeners
   useEffect(() => {
     const audio = audioRef.current;
+    audio.preload = 'auto';
 
     const handleTimeUpdate = () => {
       setCurrentTime(audio.currentTime);
@@ -109,32 +122,46 @@ export function MusicProvider({ children }) {
       setDuration(audio.duration || 0);
     };
 
+    const handlePlay = () => {
+      setIsPlaying(true);
+    };
+
+    const handlePause = () => {
+      setIsPlaying(false);
+    };
+
     const handleEnded = () => {
-      if (isLoop) {
+      if (isLoopRef.current) {
         audio.currentTime = 0;
         audio.play().catch(console.error);
-      } else {
-        nextSong();
+      } else if (nextSongRef.current) {
+        nextSongRef.current();
       }
     };
 
     const handleError = (e) => {
-      console.error("Audio playback error occurred:", e);
+      console.warn("Audio playback error occurred:", e);
       setIsPlaying(false);
     };
 
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('playing', handlePlay);
+    audio.addEventListener('pause', handlePause);
     audio.addEventListener('ended', handleEnded);
     audio.addEventListener('error', handleError);
 
     return () => {
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('playing', handlePlay);
+      audio.removeEventListener('pause', handlePause);
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('error', handleError);
     };
-  }, [isLoop]);
+  }, []);
 
   // Sync volume state to audio element
   useEffect(() => {
@@ -145,7 +172,7 @@ export function MusicProvider({ children }) {
 
   // Play a specific song
   const playSong = useCallback((song, playlist = null) => {
-    if (!song) return;
+    if (!song || !song.uri) return;
 
     // Check Guest demo limit (5 songs for unauthenticated users)
     const isAuth = !!localStorage.getItem('token');
@@ -174,11 +201,24 @@ export function MusicProvider({ children }) {
 
     if (playlist && playlist.length > 0) {
       setQueue(playlist);
+      queueRef.current = playlist;
       const idx = playlist.findIndex((s) => (s._id || s.id) === (song._id || song.id));
-      setQueueIndex(idx !== -1 ? idx : 0);
-    } else if (!queue.some(s => (s._id || s.id) === (song._id || song.id))) {
-      setQueue([song, ...queue]);
-      setQueueIndex(0);
+      const newIdx = idx !== -1 ? idx : 0;
+      setQueueIndex(newIdx);
+      queueIndexRef.current = newIdx;
+    } else {
+      const currentQ = queueRef.current;
+      const existingIdx = currentQ.findIndex(s => (s._id || s.id) === (song._id || song.id));
+      if (existingIdx !== -1) {
+        setQueueIndex(existingIdx);
+        queueIndexRef.current = existingIdx;
+      } else {
+        const updatedQ = [song, ...currentQ];
+        setQueue(updatedQ);
+        queueRef.current = updatedQ;
+        setQueueIndex(0);
+        queueIndexRef.current = 0;
+      }
     }
 
     // Record ML learning for previous song if listened
@@ -198,77 +238,96 @@ export function MusicProvider({ children }) {
     });
 
     setCurrentSong(song);
+
     const audio = audioRef.current;
+    audio.preload = 'auto';
 
-    // Check if song is cached and load cached URL if available
-    isAudioCached(song.uri).then(cached => setIsCached(cached)).catch(() => {});
-    getCachedAudioUrl(song.uri).then((playableUrl) => {
-      if (audio.src !== playableUrl) {
-        audio.src = playableUrl;
-        audio.load();
-      }
+    // Start playback immediately using direct uri to eliminate startup latency
+    if (audio.src !== song.uri) {
+      audio.src = song.uri;
+    }
 
-      audio.play().then(() => {
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise.then(() => {
         setIsPlaying(true);
       }).catch((err) => {
-        console.warn("Audio playback initiated with warning:", err.message);
+        console.warn("Immediate audio play warning:", err.message);
       });
-    }).catch(() => {
-      audio.src = song.uri;
-      audio.load();
-      audio.play().then(() => setIsPlaying(true)).catch(console.error);
-    });
-  }, [initAudioAnalyser, queue, currentSong, currentTime, duration]);
+    }
 
-  // Toggle play/pause
+    // Check offline cache in background without delaying initial play
+    isAudioCached(song.uri).then(cached => setIsCached(cached)).catch(() => {});
+  }, [initAudioAnalyser, currentSong, currentTime, duration]);
+
+  // Toggle play/pause - uses actual audio.paused as source of truth
   const togglePlay = useCallback(() => {
-    if (!currentSong) return;
+    const audio = audioRef.current;
+    if (!audio || !audio.src) return;
+
     initAudioAnalyser();
     if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
       audioContextRef.current.resume();
     }
 
-    const audio = audioRef.current;
-    if (isPlaying) {
-      audio.pause();
+    if (audio.paused) {
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          setIsPlaying(true);
+        }).catch((err) => {
+          console.warn("Toggle play error:", err.message);
+          setIsPlaying(false);
+        });
+      }
     } else {
-      audio.play().catch(console.error);
+      audio.pause();
+      setIsPlaying(false);
     }
-  }, [currentSong, isPlaying, initAudioAnalyser]);
+  }, [initAudioAnalyser]);
 
   // Next song
   const nextSong = useCallback(() => {
-    if (queue.length === 0) return;
-    let nextIdx = queueIndex + 1;
-    if (isShuffle) {
-      nextIdx = Math.floor(Math.random() * queue.length);
-    } else if (nextIdx >= queue.length) {
+    const currentQ = queueRef.current;
+    if (!currentQ || currentQ.length === 0) return;
+    let nextIdx = queueIndexRef.current + 1;
+    if (isShuffleRef.current) {
+      nextIdx = Math.floor(Math.random() * currentQ.length);
+    } else if (nextIdx >= currentQ.length) {
       nextIdx = 0;
     }
     setQueueIndex(nextIdx);
-    const nextTrack = queue[nextIdx];
+    queueIndexRef.current = nextIdx;
+    const nextTrack = currentQ[nextIdx];
     if (nextTrack) {
-      playSong(nextTrack, queue);
+      playSong(nextTrack, currentQ);
     }
-  }, [queue, queueIndex, isShuffle, playSong]);
+  }, [playSong]);
 
   // Previous song
   const prevSong = useCallback(() => {
-    if (queue.length === 0) return;
-    if (audioRef.current.currentTime > 3) {
+    const currentQ = queueRef.current;
+    if (!currentQ || currentQ.length === 0) return;
+    if (audioRef.current && audioRef.current.currentTime > 3) {
       audioRef.current.currentTime = 0;
       return;
     }
-    let prevIdx = queueIndex - 1;
+    let prevIdx = queueIndexRef.current - 1;
     if (prevIdx < 0) {
-      prevIdx = queue.length - 1;
+      prevIdx = currentQ.length - 1;
     }
     setQueueIndex(prevIdx);
-    const prevTrack = queue[prevIdx];
+    queueIndexRef.current = prevIdx;
+    const prevTrack = currentQ[prevIdx];
     if (prevTrack) {
-      playSong(prevTrack, queue);
+      playSong(prevTrack, currentQ);
     }
-  }, [queue, queueIndex, playSong]);
+  }, [playSong]);
+
+  // Update nextSongRef so handleEnded always calls the latest nextSong
+  useEffect(() => {
+    nextSongRef.current = nextSong;
+  }, [nextSong]);
 
   // Seek to position in seconds
   const seek = useCallback((timeInSeconds) => {

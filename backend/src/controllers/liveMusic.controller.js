@@ -278,20 +278,30 @@ async function getGenreSongs(req, res) {
 // ================= 3. GET TOP TRENDING HITS =================
 async function getTrending(req, res) {
     try {
-        const url = `https://www.jiosaavn.com/api.php?__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&n=25&p=1&q=trending%20charts%20india`;
-
-        const response = await fetch(url, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+        const queries = ['trending hindi', 'bollywood romantic hits', 'top hits india'];
+        const fetchPromises = queries.map(async (q) => {
+            try {
+                const url = `https://www.jiosaavn.com/api.php?__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&n=12&p=1&q=${encodeURIComponent(q)}`;
+                const response = await fetch(url, {
+                    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+                });
+                const data = await response.json();
+                return (data.results || []).map(normalizeSong).filter(song => !!song.uri);
+            } catch (e) {
+                return [];
             }
         });
 
-        const data = await response.json();
-        const rawSongs = (data.results || [])
-            .map(normalizeSong)
-            .filter(song => !!song.uri);
+        const queryResults = await Promise.all(fetchPromises);
+        const combined = [];
+        const maxLen = Math.max(...queryResults.map(r => r.length), 0);
+        for (let i = 0; i < maxLen; i++) {
+            for (const list of queryResults) {
+                if (list[i]) combined.push(list[i]);
+            }
+        }
 
-        const results = deduplicateSongs(rawSongs, 1);
+        const results = deduplicateSongs(combined, 1);
 
         return res.status(200).json({
             message: "Trending hits fetched",
@@ -335,12 +345,11 @@ async function getSearchSuggestions(req, res) {
     }
 }
 
-// ================= 4. GET LIVE SYNCHRONIZED LYRICS =================
+// ================= 5. GET LIVE SYNCHRONIZED LYRICS =================
 async function getLiveLyrics(req, res) {
     try {
         const rawTitle = req.query.title || req.query.q || '';
         const rawArtist = req.query.artist || '';
-        const duration = parseInt(req.query.duration, 10) || 0;
 
         if (!rawTitle) {
             return res.status(400).json({ success: false, message: "Song title is required" });
@@ -348,45 +357,70 @@ async function getLiveLyrics(req, res) {
 
         // Clean title & artist for optimal LRC matching
         const cleanTitle = rawTitle
+            .replace(/&quot;/g, '"')
+            .replace(/&amp;/g, '&')
+            .replace(/&#039;/g, "'")
             .replace(/\(From\s+["'][^"']+["']\)/gi, '')
             .replace(/\(Original Motion Picture Soundtrack\)/gi, '')
             .replace(/\(Official Video\)/gi, '')
+            .replace(/\(Official Audio\)/gi, '')
             .replace(/\(Lofi\)/gi, '')
+            .replace(/\(Remix\)/gi, '')
             .replace(/\(.*?\)/g, '')
             .replace(/\[.*?\]/g, '')
             .replace(/[-–].*$/, '')
             .trim();
 
         const cleanArtist = rawArtist
+            .replace(/&quot;/g, '"')
+            .replace(/&amp;/g, '&')
+            .replace(/&#039;/g, "'")
             .replace(/feat\..*$/gi, '')
             .replace(/,.*$/, '')
             .trim();
 
-        // 1. Try direct LRCLIB exact match
-        let lrcUrl = `https://lrclib.net/api/get?track_name=${encodeURIComponent(cleanTitle)}&artist_name=${encodeURIComponent(cleanArtist)}`;
-        if (duration > 0) lrcUrl += `&duration=${duration}`;
-
-        let lrcRes = await fetch(lrcUrl, {
-            headers: { 'User-Agent': 'AURA-3D-Music-App/1.0 (https://aura3d.app)' }
-        });
+        const headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Accept': 'application/json'
+        };
 
         let data = null;
-        if (lrcRes.ok) {
-            data = await lrcRes.json();
-        }
 
-        // 2. Fallback to LRCLIB search if exact match not found
-        if (!data || (!data.syncedLyrics && !data.plainLyrics)) {
+        // 1. Try search with cleanTitle + cleanArtist
+        try {
             const searchUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(cleanTitle + ' ' + cleanArtist)}`;
-            const searchRes = await fetch(searchUrl, {
-                headers: { 'User-Agent': 'AURA-3D-Music-App/1.0 (https://aura3d.app)' }
-            });
+            const searchRes = await fetch(searchUrl, { headers });
             if (searchRes.ok) {
                 const searchList = await searchRes.json();
                 if (Array.isArray(searchList) && searchList.length > 0) {
-                    data = searchList.find(item => !!item.syncedLyrics) || searchList[0];
+                    data = searchList.find(item => !!item.syncedLyrics) || searchList.find(item => !!item.plainLyrics);
                 }
             }
+        } catch (e) {}
+
+        // 2. Try search with cleanTitle only
+        if (!data || (!data.syncedLyrics && !data.plainLyrics)) {
+            try {
+                const titleOnlyUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(cleanTitle)}`;
+                const titleRes = await fetch(titleOnlyUrl, { headers });
+                if (titleRes.ok) {
+                    const titleList = await titleRes.json();
+                    if (Array.isArray(titleList) && titleList.length > 0) {
+                        data = titleList.find(item => !!item.syncedLyrics) || titleList.find(item => !!item.plainLyrics);
+                    }
+                }
+            } catch (e) {}
+        }
+
+        // 3. Fallback exact match
+        if (!data || (!data.syncedLyrics && !data.plainLyrics)) {
+            try {
+                let lrcUrl = `https://lrclib.net/api/get?track_name=${encodeURIComponent(cleanTitle)}&artist_name=${encodeURIComponent(cleanArtist)}`;
+                let lrcRes = await fetch(lrcUrl, { headers });
+                if (lrcRes.ok) {
+                    data = await lrcRes.json();
+                }
+            } catch (e) {}
         }
 
         if (data && (data.syncedLyrics || data.plainLyrics)) {
