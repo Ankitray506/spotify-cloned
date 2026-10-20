@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import axiosClient from '../api/axiosClient';
 import { useAuth } from '../context/AuthContext';
@@ -9,6 +9,7 @@ import AlbumCard3D from '../components/cards/AlbumCard3D';
 import AudioSphere3D from '../components/3d/AudioSphere3D';
 import AudioVisualizer3D from '../components/3d/AudioVisualizer3D';
 import IndianGenresSection from '../components/sections/IndianGenresSection';
+import YouTubeStreamerSection from '../components/sections/YouTubeStreamerSection';
 import CommunityOriginalsSection from '../components/sections/CommunityOriginalsSection';
 import MadeForYouSection from '../components/sections/MadeForYouSection';
 import ListeningHistorySection from '../components/sections/ListeningHistorySection';
@@ -89,6 +90,8 @@ export default function HomePage() {
   const [loadingLive, setLoadingLive] = useState(false);
   const [loadingCommunity, setLoadingCommunity] = useState(true);
 
+  const liveSectionRef = useRef(null);
+
   // Modals
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
@@ -163,10 +166,18 @@ export default function HomePage() {
     };
   }, [searchTerm, activeGenre]);
 
-  // Handle Indian Genre selection
+  // Handle Indian Genre selection with auto-slide down to the live songs section
   const handleSelectGenre = (genreId) => {
     setSearchTerm('');
     setActiveGenre(genreId);
+    setTimeout(() => {
+      if (liveSectionRef.current) {
+        liveSectionRef.current.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start'
+        });
+      }
+    }, 120);
   };
 
   // ML Recommendations
@@ -279,6 +290,9 @@ export default function HomePage() {
           </div>
         )}
 
+        {/* YouTube to Ad-Free 3D Audio Streamer */}
+        <YouTubeStreamerSection />
+
         {/* SECTION 1: Explore Indian Sounds  */}
         <IndianGenresSection
           activeGenre={activeGenre}
@@ -286,7 +300,7 @@ export default function HomePage() {
         />
 
         {/* SECTION 2: Live Songs Results (Search / Selected Genre) */}
-        <section className="mb-12">
+        <section ref={liveSectionRef} className="mb-12 scroll-mt-24">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2.5">
               <Zap className="w-5 h-5 text-amber-400 animate-pulse" />
