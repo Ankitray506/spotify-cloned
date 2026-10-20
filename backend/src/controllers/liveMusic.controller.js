@@ -345,6 +345,71 @@ async function getSearchSuggestions(req, res) {
     }
 }
 
+// Curated lyrics for popular regional Indian hits (Bhojpuri, Maithili, Folk)
+const REGIONAL_LYRICS = {
+    'panche ke nache aiha': `[Female / Shilpi Raj]
+अभी जवानी आल्हर बा, बाचल ना एको पार्लर बा
+देहि पs छींटत डॉलर बा, कइले खड़ा जवन कालर बा!
+
+[Male / Pawan Singh]
+काँचे कसईलिया जइसन ऊमर बा, काँचे अइह
+चउकी हुमाचे अइह, पांचे के नाचे अइह...
+चउकी हुमाचे अइह, पांचे के नाचे अइह!
+
+[Male / Pawan Singh]
+तोहरे के पहिला दे तानी इनविटेशन
+चहबू त ढेर दिन चली रिलेशन!
+
+[Female / Shilpi Raj]
+राउर नेवता ए हमार देवता बड़ी महंगा पड़ी
+पहिले रोवे फेरु धोवे नाया लहंगा पड़ी!
+
+[Male / Pawan Singh]
+लफड़ा ना होइ कपड़ा पेन्ही बरसाचे अइह
+चउकी हुमाचे अइह, पांचे के नाचे अइह...
+चउकी हुमाचे अइह, पांचे के नाचे अइह!
+
+[Male / Pawan Singh]
+रोकी कवन हई राजा हम मन के
+कही दिह बाटे परोजन पवन के!
+
+[Female / Shilpi Raj]
+हई सेतिहे में जवानी ना नीलाम करब
+प्रियांशु आशु धांशू प्रोग्राम करब...
+
+[Male / Pawan Singh]
+चूल्ही में लावना लागी सहे तू आँचे अइह
+चउकी हुमाचे अइह, पांचे के नाचे अइह...
+चउकी हुमाचे अइह, पांचे के नाचे अइह!`,
+
+    'lollipop': `कमरिया करे लपालप, लॉलीपॉप लागेलू!
+कमरिया करे लपालप, लॉलीपॉप लागेलू!
+
+जब लचकेला तोहार कमरिया सारा जिला हिलेला
+जब चमकेला तोहार नथुनिया सारा आरा हिलेला!
+
+गोरिया चाल तोहार मतवाली बा
+चेहरा पs चढ़ल लाली बा
+कमरिया करे लपालप, लॉलीपॉप लागेलू!`,
+
+    'hari hari odhani': `कमर लचकेला तोहार पतली कमरिया
+नाचे में उड़ावे लू हरियर ओढ़निया!
+लचके जब कमर तोहार डोले अरिया
+हरी हरी ओढ़नी तोहार चमके बदरिया!`,
+
+    'nathuniya': `ए राजा जी...
+काहे ताकेला नजर गड़ा के
+हिला देबू जिला नथुनिया चमका के!
+नथुनिया पे जान मारे सारा जमाना
+तोहरे पs फिदा भइल यूपी-बिहार दीवाना!`,
+
+    'pahile pahil': `पहिले पहिल हम कईनी छठी मईया बरत तोहार...
+करिहा क्षमा छठी मईया भूल चूक गलती हमार!
+
+गोदी के बालकवा के दिहा दीर्घायु वरदान...
+हे छठी मईया सुन लीं सेवक के पुकार!`
+};
+
 // ================= 5. GET LIVE SYNCHRONIZED LYRICS =================
 async function getLiveLyrics(req, res) {
     try {
@@ -432,6 +497,21 @@ async function getLiveLyrics(req, res) {
                 plainLyrics: data.plainLyrics || null,
                 hasSynced: !!data.syncedLyrics
             });
+        }
+
+        // 4. Regional Hits Fallback Bank (Bhojpuri, Maithili & Desi Classics)
+        const normTitle = cleanTitle.toLowerCase().trim();
+        for (const [key, lyrics] of Object.entries(REGIONAL_LYRICS)) {
+            if (normTitle.includes(key) || key.includes(normTitle)) {
+                return res.status(200).json({
+                    success: true,
+                    title: cleanTitle,
+                    artist: cleanArtist || 'Regional Artist',
+                    syncedLyrics: null,
+                    plainLyrics: lyrics,
+                    hasSynced: false
+                });
+            }
         }
 
         return res.status(200).json({

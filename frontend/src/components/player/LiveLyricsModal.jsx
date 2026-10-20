@@ -132,10 +132,36 @@ export default function LiveLyricsModal() {
         if (isCancelled) return;
 
         if (resData && (resData.syncedLyrics || resData.plainLyrics)) {
-          const parsed = parseLRC(resData.syncedLyrics || resData.plainLyrics);
+          const rawLrc = resData.syncedLyrics || resData.plainLyrics;
+          const parsed = parseLRC(rawLrc);
+
+          let finalLines = parsed.lines;
+          let isSynced = parsed.isSynced;
+
+          // If raw lyrics lack timestamps, auto-interpolate timed karaoke lines across song duration
+          if (!isSynced && parsed.plain && (duration > 15 || currentSong.duration > 15)) {
+            const trackDur = Math.round(duration || currentSong.duration || 180);
+            const textLines = parsed.plain
+              .split('\n')
+              .map(l => l.trim())
+              .filter(l => l.length > 0 && !l.startsWith('==='));
+
+            if (textLines.length > 0) {
+              const startOffset = 5;
+              const usableDuration = Math.max(trackDur - 15, textLines.length * 4);
+              const step = usableDuration / textLines.length;
+
+              finalLines = textLines.map((text, idx) => ({
+                time: Math.round((startOffset + idx * step) * 10) / 10,
+                text
+              }));
+              isSynced = true;
+            }
+          }
+
           const resolved = {
-            isSynced: parsed.isSynced,
-            lines: parsed.lines,
+            isSynced,
+            lines: finalLines,
             plain: parsed.plain || resData.plainLyrics || '',
             unavailable: false
           };
