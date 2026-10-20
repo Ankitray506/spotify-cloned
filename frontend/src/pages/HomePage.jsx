@@ -8,59 +8,136 @@ import SongCard3D from '../components/cards/SongCard3D';
 import AlbumCard3D from '../components/cards/AlbumCard3D';
 import AudioSphere3D from '../components/3d/AudioSphere3D';
 import AudioVisualizer3D from '../components/3d/AudioVisualizer3D';
-import { Disc3, Sparkles, Flame, Radio, Plus, Upload, Play, Music } from 'lucide-react';
+import IndianGenresSection from '../components/sections/IndianGenresSection';
+import CommunityOriginalsSection from '../components/sections/CommunityOriginalsSection';
+import MadeForYouSection from '../components/sections/MadeForYouSection';
+import ListeningHistorySection from '../components/sections/ListeningHistorySection';
+import SearchWithSuggestions from '../components/common/SearchWithSuggestions';
+import ProfileEditModal from '../components/common/ProfileEditModal';
+import SupportFeedbackModal from '../components/common/SupportFeedbackModal';
+import { rankSongsForUser, getTopUserGenres } from '../services/mlRecommender';
+import { Disc3, Sparkles, Flame, Radio, Plus, Upload, Play, Music, Search, RefreshCw, Zap } from 'lucide-react';
 
 export default function HomePage() {
   const { isAuthenticated, isArtist, user } = useAuth();
   const { playSong, currentSong, isPlaying, toggleFullscreen3D } = useMusic();
 
-  const [songs, setSongs] = useState([]);
+  const [communitySongs, setCommunitySongs] = useState([]);
+  const [liveSongs, setLiveSongs] = useState([]);
+  const [relatedSongs, setRelatedSongs] = useState([]);
   const [albums, setAlbums] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [activeGenre, setActiveGenre] = useState('maithili'); // Default to Maithili as requested!
+  const [loadingLive, setLoadingLive] = useState(false);
+  const [loadingCommunity, setLoadingCommunity] = useState(true);
 
-  // Fetch songs and albums
+  // Modals
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isSupportOpen, setIsSupportOpen] = useState(false);
+
+  // 1. Fetch Community Uploaded Tracks & Albums
   useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
+    async function fetchCommunityMusic() {
+      setLoadingCommunity(true);
       try {
         if (isAuthenticated) {
           const [songsRes, albumsRes] = await Promise.allSettled([
-            axiosClient.get(`/music${searchTerm ? `?search=${encodeURIComponent(searchTerm)}` : ''}`),
+            axiosClient.get('/music'),
             axiosClient.get('/music/albums')
           ]);
 
           if (songsRes.status === 'fulfilled' && songsRes.value.data?.musics) {
-            setSongs(songsRes.value.data.musics);
+            setCommunitySongs(songsRes.value.data.musics);
           }
           if (albumsRes.status === 'fulfilled' && albumsRes.value.data?.albums) {
             setAlbums(albumsRes.value.data.albums);
           }
         }
       } catch (err) {
-        console.warn("Fetch music error:", err.message);
+        console.warn("Fetch community music error:", err.message);
       } finally {
-        setLoading(false);
+        setLoadingCommunity(false);
       }
     }
 
-    const timer = setTimeout(fetchData, 200);
-    return () => clearTimeout(timer);
-  }, [isAuthenticated, searchTerm]);
+    fetchCommunityMusic();
+  }, [isAuthenticated]);
 
-  const filteredSongs = songs.filter(s =>
-    s.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (typeof s.artist === 'object' && s.artist?.username?.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  // 2. Fetch Live Global Music (by Search or Genre)
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function fetchLiveTracks() {
+      setLoadingLive(true);
+      try {
+        let endpoint = '';
+        if (searchTerm && searchTerm.trim()) {
+          endpoint = `/live/search?q=${encodeURIComponent(searchTerm.trim())}&limit=25`;
+        } else if (activeGenre) {
+          endpoint = `/live/genre?genre=${encodeURIComponent(activeGenre)}&limit=20`;
+        } else {
+          endpoint = `/live/trending`;
+        }
+
+        const res = await axiosClient.get(endpoint);
+        if (!isCancelled && res.data) {
+          setLiveSongs(res.data.songs || []);
+          setRelatedSongs(res.data.relatedSuggestions || []);
+        }
+      } catch (err) {
+        console.warn("Live music fetch error:", err.message);
+      } finally {
+        if (!isCancelled) setLoadingLive(false);
+      }
+    }
+
+    const timer = setTimeout(fetchLiveTracks, 300);
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
+  }, [searchTerm, activeGenre]);
+
+  // Handle Indian Genre selection
+  const handleSelectGenre = (genreId) => {
+    setSearchTerm('');
+    setActiveGenre(genreId);
+  };
+
+  // ML Recommendations
+  const allAvailableSongs = [...liveSongs, ...communitySongs];
+  const recommendedSongs = rankSongsForUser(allAvailableSongs);
+  const topGenres = getTopUserGenres();
 
   return (
-    <div className="min-h-screen bg-[#060911] text-white flex flex-col pb-32">
+    <div className="min-h-screen bg-[#060911] text-white flex flex-col pb-36">
       {/* Navigation */}
-      <Navbar onSearchChange={setSearchTerm} searchTerm={searchTerm} />
+      <Navbar
+        onSearchChange={(val) => {
+          setSearchTerm(val);
+          if (val) setActiveGenre(null);
+        }}
+        searchTerm={searchTerm}
+        onOpenProfile={() => setIsProfileOpen(true)}
+        onOpenSupport={() => setIsSupportOpen(true)}
+      />
 
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6">
         
+        {/* Mobile Search Bar with Instant 5 Suggestions */}
+        <div className="md:hidden mb-6">
+          <SearchWithSuggestions
+            searchTerm={searchTerm}
+            onSearchChange={(val) => {
+              setSearchTerm(val);
+              if (val) setActiveGenre(null);
+            }}
+            placeholder="Search songs, artists, Maithili geet..."
+            className="w-full"
+          />
+        </div>
+
         {/* 3D Immersive Hero Section */}
         <div className="relative rounded-3xl overflow-hidden glass-card border border-white/10 p-6 sm:p-12 mb-10 shadow-2xl">
           
@@ -72,28 +149,26 @@ export default function HomePage() {
           <div className="relative z-10 max-w-xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono mb-4">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>SPATIAL AUDIO • 3D EXPERIENCES</span>
+              <span>SPATIAL AUDIO </span>
             </div>
 
             <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight font-['Space_Grotesk'] leading-tight mb-4">
-              Immerse In Sound, <br />
+              Stream Infinite Music, <br />
               <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 bg-clip-text text-transparent">
-                Feel Every Frequency.
+                Feel In 3D Space.
               </span>
             </h1>
 
-            <p className="text-slate-300 text-sm sm:text-base leading-relaxed mb-6">
-              Experience modern music with interactive 3D vinyl turntables, real-time Web Audio API visualizers, and seamless artist uploads.
-            </p>
+
 
             <div className="flex flex-wrap items-center gap-3">
-              {songs.length > 0 && (
+              {liveSongs.length > 0 && (
                 <button
-                  onClick={() => playSong(songs[0], songs)}
+                  onClick={() => playSong(liveSongs[0], liveSongs)}
                   className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-black font-bold text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/30 hover:scale-105 transition-all"
                 >
                   <Play className="w-4 h-4 fill-current" />
-                  <span>Play Featured Track</span>
+                  <span>Play Top Live Hit</span>
                 </button>
               )}
 
@@ -111,13 +186,13 @@ export default function HomePage() {
                   className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-950/60 hover:bg-purple-900/60 border border-purple-500/40 text-purple-300 font-medium text-xs tracking-wider uppercase transition-all"
                 >
                   <Upload className="w-4 h-4 text-cyan-400" />
-                  <span>Upload Song</span>
+                  <span>Artist Studio</span>
                 </Link>
               )}
             </div>
           </div>
 
-          {/* Mini Real-Time Equalizer Bar at Hero Bottom */}
+          {/* Mini Equalizer Bar at Hero Bottom */}
           <div className="absolute bottom-0 left-0 right-0 h-10 opacity-30 pointer-events-none">
             <AudioVisualizer3D barCount={40} />
           </div>
@@ -128,7 +203,7 @@ export default function HomePage() {
           <div className="mb-10 p-5 rounded-2xl glass-card border border-emerald-500/30 bg-emerald-950/20 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div>
               <h3 className="text-base font-bold text-white">Join AURA 3D Music</h3>
-              <p className="text-xs text-slate-300">Sign in to browse all songs, listen to albums, or upload as an artist.</p>
+              <p className="text-xs text-slate-300">Sign in to customize your username, save offline cached tracks, and upload as an artist.</p>
             </div>
             <Link
               to="/login"
@@ -139,41 +214,51 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* Trending / All Tracks Grid */}
+        {/* SECTION 1: Explore Indian Sounds  */}
+        <IndianGenresSection
+          activeGenre={activeGenre}
+          onSelectGenre={handleSelectGenre}
+        />
+
+        {/* SECTION 2: Live Songs Results (Search / Selected Genre) */}
         <section className="mb-12">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2.5">
-              <Flame className="w-5 h-5 text-emerald-400" />
-              <h2 className="text-xl font-bold tracking-tight text-white font-['Space_Grotesk']">
-                Trending Tracks
+              <Zap className="w-5 h-5 text-amber-400 animate-pulse" />
+              <h2 className="text-xl font-bold tracking-tight text-white font-['Space_Grotesk'] capitalize">
+                {searchTerm
+                  ? `Live Results for "${searchTerm}"`
+                  : activeGenre
+                  ? `${activeGenre} Spotlight Hits`
+                  : 'Trending Hits'}
               </h2>
-              <span className="text-xs font-mono text-slate-400">({filteredSongs.length})</span>
+              <span className="text-xs font-mono text-slate-400">({liveSongs.length} Tracks)</span>
             </div>
 
-            {isArtist && (
-              <Link
-                to="/artist/studio"
-                className="text-xs font-mono text-cyan-400 hover:underline flex items-center gap-1"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Upload New
-              </Link>
-            )}
+            <button
+              onClick={() => {
+                if (liveSongs.length > 0) playSong(liveSongs[0], liveSongs);
+              }}
+              className="text-xs font-mono text-emerald-400 hover:underline flex items-center gap-1"
+            >
+              <Play className="w-3.5 h-3.5 fill-current" />
+              Play All
+            </button>
           </div>
 
-          {loading ? (
+          {loadingLive ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
               {[...Array(5)].map((_, i) => (
                 <div key={i} className="aspect-square rounded-2xl bg-white/5 animate-pulse" />
               ))}
             </div>
-          ) : filteredSongs.length > 0 ? (
+          ) : liveSongs.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-              {filteredSongs.map((song, i) => (
+              {liveSongs.map((song, i) => (
                 <SongCard3D
                   key={song._id || song.id || i}
                   song={song}
-                  playlist={filteredSongs}
+                  playlist={liveSongs}
                   index={i}
                 />
               ))}
@@ -181,33 +266,42 @@ export default function HomePage() {
           ) : (
             <div className="rounded-2xl glass-card border border-white/10 p-10 text-center">
               <Disc3 className="w-12 h-12 text-slate-500 mx-auto mb-3 animate-spin-slow" />
-              <h4 className="text-base font-bold text-white mb-1">No tracks found</h4>
-              <p className="text-xs text-slate-400 max-w-sm mx-auto mb-4">
-                {searchTerm
-                  ? `No songs matched "${searchTerm}". Try another search keyword.`
-                  : "No songs have been uploaded to the platform yet."}
+              <h4 className="text-base font-bold text-white mb-1">No live tracks found</h4>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto mb-6">
+                Try searching for another artist like Arijit Singh, Sharda Sinha, Sidhu Moosewala, or Divine.
               </p>
-              {isArtist ? (
-                <Link
-                  to="/artist/studio"
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold uppercase tracking-wider"
-                >
-                  <Upload className="w-4 h-4" />
-                  Upload First Track
-                </Link>
-              ) : (
-                <Link
-                  to="/login"
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold uppercase tracking-wider"
-                >
-                  Sign in as Artist to Upload
-                </Link>
+
+              {relatedSongs.length > 0 && (
+                <div className="text-left mt-6 pt-6 border-t border-white/10">
+                  <h4 className="text-sm font-bold text-cyan-300 font-mono uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-cyan-400" />
+                    Similar & Related Hit Songs For You
+                  </h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    {relatedSongs.map((song, i) => (
+                      <SongCard3D key={song._id || song.id || i} song={song} playlist={relatedSongs} index={i} />
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           )}
         </section>
 
-        {/* Featured Albums Section */}
+        {/* SECTION 2.5: Recently Played (Offline Cached with 0 Data Usage) */}
+        <ListeningHistorySection />
+
+        {/* SECTION 3: Community Artist Originals (Uploaded by users) */}
+        {communitySongs.length > 0 && (
+          <CommunityOriginalsSection songs={communitySongs} />
+        )}
+
+        {/* SECTION 4: ML Online Learning "Made For You" */}
+        {recommendedSongs.length > 0 && (
+          <MadeForYouSection songs={recommendedSongs} topGenres={topGenres} />
+        )}
+
+        {/* SECTION 5: Featured Albums */}
         {albums.length > 0 && (
           <section className="mb-12">
             <div className="flex items-center justify-between mb-6">
@@ -233,6 +327,19 @@ export default function HomePage() {
         )}
 
       </main>
+
+      {/* Profile Edit Modal */}
+      <ProfileEditModal
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+      />
+
+      {/* Support & Bug Report Modal */}
+      <SupportFeedbackModal
+        isOpen={isSupportOpen}
+        onClose={() => setIsSupportOpen(false)}
+      />
+
     </div>
   );
 }

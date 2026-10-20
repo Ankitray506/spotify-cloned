@@ -1,4 +1,7 @@
 import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react';
+import axiosClient from '../api/axiosClient';
+import { getCachedAudioUrl, isAudioCached } from '../services/audioCache';
+import { recordSongInteraction } from '../services/mlRecommender';
 
 const MusicContext = createContext(null);
 
@@ -6,6 +9,7 @@ export function MusicProvider({ children }) {
   const audioRef = useRef(new Audio());
   const [currentSong, setCurrentSong] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isCached, setIsCached] = useState(false);
   const [queue, setQueue] = useState([]);
   const [queueIndex, setQueueIndex] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
@@ -15,6 +19,32 @@ export function MusicProvider({ children }) {
   const [isLoop, setIsLoop] = useState(false);
   const [isShuffle, setIsShuffle] = useState(false);
   const [isFullscreen3D, setIsFullscreen3D] = useState(false);
+  const [isLyricsOpen, setIsLyricsOpen] = useState(false);
+  const [showGuestLimitModal, setShowGuestLimitModal] = useState(false);
+  const [guestPlaysCount, setGuestPlaysCount] = useState(() => {
+    try {
+      return parseInt(localStorage.getItem('aura_guest_play_count') || '0', 10);
+    } catch (e) {
+      return 0;
+    }
+  });
+
+  const [likedSongs, setLikedSongs] = useState(() => {
+    try {
+      const stored = localStorage.getItem('aura_liked_songs');
+      return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  const [history, setHistory] = useState(() => {
+    try {
+      const stored = localStorage.getItem('aura_listening_history');
+      return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+      return [];
+    }
+  });
 
   // Web Audio API refs for real-time frequency analysis
   const audioContextRef = useRef(null);
@@ -88,27 +118,54 @@ export function MusicProvider({ children }) {
       }
     };
 
-    const handlePlay = () => setIsPlaying(true);
-    const handlePause = () => setIsPlaying(false);
+    const handleError = (e) => {
+      console.error("Audio playback error occurred:", e);
+      setIsPlaying(false);
+    };
 
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
     audio.addEventListener('ended', handleEnded);
-    audio.addEventListener('play', handlePlay);
-    audio.addEventListener('pause', handlePause);
+    audio.addEventListener('error', handleError);
 
     return () => {
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('ended', handleEnded);
-      audio.removeEventListener('play', handlePlay);
-      audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('error', handleError);
     };
-  }, [isLoop, queue, queueIndex]);
+  }, [isLoop]);
 
-  // Play a song
+  // Sync volume state to audio element
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = isMuted ? 0 : volume;
+    }
+  }, [volume, isMuted]);
+
+  // Play a specific song
   const playSong = useCallback((song, playlist = null) => {
     if (!song) return;
+
+    // Check Guest demo limit (5 songs for unauthenticated users)
+    const isAuth = !!localStorage.getItem('token');
+    if (!isAuth) {
+      const currentGuestCount = parseInt(localStorage.getItem('aura_guest_play_count') || '0', 10);
+      if (currentGuestCount >= 5) {
+        setShowGuestLimitModal(true);
+        if (audioRef.current) {
+          audioRef.current.pause();
+        }
+        setIsPlaying(false);
+        return;
+      }
+      const newGuestCount = currentGuestCount + 1;
+      localStorage.setItem('aura_guest_play_count', String(newGuestCount));
+      setGuestPlaysCount(newGuestCount);
+    } else {
+      // Authenticated user: track play in backend database
+      axiosClient.post('/auth/record-listen').catch(() => {});
+    }
 
     initAudioAnalyser();
     if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
@@ -124,19 +181,44 @@ export function MusicProvider({ children }) {
       setQueueIndex(0);
     }
 
-    setCurrentSong(song);
-    const audio = audioRef.current;
-    if (audio.src !== song.uri) {
-      audio.src = song.uri;
-      audio.load();
+    // Record ML learning for previous song if listened
+    if (currentSong && currentTime > 5) {
+      recordSongInteraction(currentSong, currentTime, duration);
     }
 
-    audio.play().then(() => {
-      setIsPlaying(true);
-    }).catch((err) => {
-      console.warn("Audio playback initiated with warning:", err.message);
+    // Record to Listening History for offline replay
+    setHistory(prev => {
+      const songId = song._id || song.id;
+      const filtered = prev.filter(s => (s._id || s.id) !== songId);
+      const updated = [song, ...filtered].slice(0, 30);
+      try {
+        localStorage.setItem('aura_listening_history', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
     });
-  }, [initAudioAnalyser, queue]);
+
+    setCurrentSong(song);
+    const audio = audioRef.current;
+
+    // Check if song is cached and load cached URL if available
+    isAudioCached(song.uri).then(cached => setIsCached(cached)).catch(() => {});
+    getCachedAudioUrl(song.uri).then((playableUrl) => {
+      if (audio.src !== playableUrl) {
+        audio.src = playableUrl;
+        audio.load();
+      }
+
+      audio.play().then(() => {
+        setIsPlaying(true);
+      }).catch((err) => {
+        console.warn("Audio playback initiated with warning:", err.message);
+      });
+    }).catch(() => {
+      audio.src = song.uri;
+      audio.load();
+      audio.play().then(() => setIsPlaying(true)).catch(console.error);
+    });
+  }, [initAudioAnalyser, queue, currentSong, currentTime, duration]);
 
   // Toggle play/pause
   const togglePlay = useCallback(() => {
@@ -188,36 +270,101 @@ export function MusicProvider({ children }) {
     }
   }, [queue, queueIndex, playSong]);
 
-  // Seek time
-  const seek = useCallback((time) => {
-    if (audioRef.current && !isNaN(time)) {
-      audioRef.current.currentTime = time;
-      setCurrentTime(time);
+  // Seek to position in seconds
+  const seek = useCallback((timeInSeconds) => {
+    if (audioRef.current && isFinite(timeInSeconds)) {
+      audioRef.current.currentTime = timeInSeconds;
+      setCurrentTime(timeInSeconds);
     }
   }, []);
 
   // Change volume
   const changeVolume = useCallback((newVolume) => {
-    const val = Math.max(0, Math.min(1, newVolume));
-    setVolume(val);
-    if (audioRef.current) {
-      audioRef.current.volume = val;
-    }
-    if (val > 0) setIsMuted(false);
-  }, []);
-
-  // Toggle mute
-  const toggleMute = useCallback(() => {
-    if (audioRef.current) {
-      const nextMuted = !isMuted;
-      setIsMuted(nextMuted);
-      audioRef.current.muted = nextMuted;
+    setVolume(newVolume);
+    if (newVolume > 0 && isMuted) {
+      setIsMuted(false);
     }
   }, [isMuted]);
 
-  const toggleLoop = useCallback(() => setIsLoop(prev => !prev), []);
-  const toggleShuffle = useCallback(() => setIsShuffle(prev => !prev), []);
-  const toggleFullscreen3D = useCallback(() => setIsFullscreen3D(prev => !prev), []);
+  // Toggle mute
+  const toggleMute = useCallback(() => {
+    setIsMuted(prev => !prev);
+  }, []);
+
+  // Toggle loop
+  const toggleLoop = useCallback(() => {
+    setIsLoop(prev => !prev);
+  }, []);
+
+  // Toggle shuffle
+  const toggleShuffle = useCallback(() => {
+    setIsShuffle(prev => !prev);
+  }, []);
+
+  // Toggle fullscreen 3D player
+  const toggleFullscreen3D = useCallback(() => {
+    setIsFullscreen3D(prev => !prev);
+  }, []);
+
+  // Toggle live synchronized lyrics modal
+  const toggleLyrics = useCallback(() => {
+    setIsLyricsOpen(prev => !prev);
+  }, []);
+
+  // Like / Unlike song
+  const toggleLike = useCallback((song) => {
+    if (!song) return;
+    const songId = song._id || song.id;
+    setLikedSongs((prev) => {
+      const exists = prev.some((s) => (s._id || s.id) === songId);
+      let updated;
+      if (exists) {
+        updated = prev.filter((s) => (s._id || s.id) !== songId);
+      } else {
+        updated = [song, ...prev];
+      }
+      try {
+        localStorage.setItem('aura_liked_songs', JSON.stringify(updated));
+      } catch (e) {
+        console.warn("Could not save liked songs:", e);
+      }
+      return updated;
+    });
+  }, []);
+
+  // Keyboard shortcut listener for Space (play/pause), ArrowLeft/Right (seek), M (mute), L (lyrics)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        togglePlay();
+      } else if (e.code === 'ArrowRight') {
+        e.preventDefault();
+        seek(Math.min(duration, currentTime + 5));
+      } else if (e.code === 'ArrowLeft') {
+        e.preventDefault();
+        seek(Math.max(0, currentTime - 5));
+      } else if (e.code === 'KeyM') {
+        e.preventDefault();
+        toggleMute();
+      } else if (e.code === 'KeyL') {
+        e.preventDefault();
+        toggleLyrics();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [togglePlay, seek, currentTime, duration, toggleMute, toggleLyrics]);
+
+  const clearHistory = useCallback(() => {
+    setHistory([]);
+    try {
+      localStorage.removeItem('aura_listening_history');
+    } catch (e) {}
+  }, []);
 
   return (
     <MusicContext.Provider
@@ -225,6 +372,10 @@ export function MusicProvider({ children }) {
         audioRef,
         currentSong,
         isPlaying,
+        isCached,
+        likedSongs,
+        history,
+        clearHistory,
         queue,
         queueIndex,
         currentTime,
@@ -234,8 +385,13 @@ export function MusicProvider({ children }) {
         isLoop,
         isShuffle,
         isFullscreen3D,
+        isLyricsOpen,
+        showGuestLimitModal,
+        setShowGuestLimitModal,
+        guestPlaysCount,
         playSong,
         togglePlay,
+        toggleLike,
         nextSong,
         prevSong,
         seek,
@@ -244,6 +400,8 @@ export function MusicProvider({ children }) {
         toggleLoop,
         toggleShuffle,
         toggleFullscreen3D,
+        toggleLyrics,
+        setIsLyricsOpen,
         getAudioFrequencyData,
       }}
     >

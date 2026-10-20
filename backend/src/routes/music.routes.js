@@ -18,4 +18,8 @@ router.get("/", authMiddleware.authUser, musicController.getAllMusics);
 router.get("/albums", authMiddleware.authUser, musicController.getAllAlbums);
 router.get("/albums/:albumId", authMiddleware.authUser, musicController.getAlbumById);
 
+// Lyrics routes
+router.put("/:id/lyrics", authMiddleware.authArtist, musicController.updateLyrics);
+router.get("/:id/lyrics", musicController.getMusicLyrics);
+
 module.exports = router;

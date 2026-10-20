@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useMusic } from '../../context/MusicContext';
-import { Disc3, Radio, Sparkles, LogOut, User, Music, Search, Upload, Shield } from 'lucide-react';
+import SettingsMenu from './SettingsMenu';
+import { Disc3, Radio, Sparkles, LogOut, User, Music, Search, Upload, Heart, ShieldCheck } from 'lucide-react';
+import SearchWithSuggestions from './SearchWithSuggestions';
 
-export default function Navbar({ onSearchChange, searchTerm = "" }) {
-  const { user, isAuthenticated, isArtist, logout } = useAuth();
-  const { isPlaying, toggleFullscreen3D, currentSong } = useMusic();
+export default function Navbar({ onSearchChange, searchTerm = "", onOpenProfile, onOpenSupport }) {
+  const { user, isAuthenticated, isArtist, isAdmin, logout } = useAuth();
+  const { isPlaying, toggleFullscreen3D, currentSong, likedSongs } = useMusic();
   const navigate = useNavigate();
   const location = useLocation();
   const [profileOpen, setProfileOpen] = useState(false);
@@ -44,22 +46,20 @@ export default function Navbar({ onSearchChange, searchTerm = "" }) {
           </div>
         </Link>
 
-        {/* Search Bar (if provided) */}
+        {/* Live Search Bar with Instant Autocomplete */}
         {onSearchChange && (
-          <div className="hidden md:flex flex-1 max-w-md mx-4 relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Search tracks, artists, albums..."
-              value={searchTerm}
-              onChange={(e) => onSearchChange(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-xl glass-input text-sm text-slate-200 placeholder-slate-400 focus:ring-1 focus:ring-emerald-500"
+          <div className="hidden md:flex flex-1 max-w-md mx-4">
+            <SearchWithSuggestions
+              searchTerm={searchTerm}
+              onSearchChange={onSearchChange}
+              placeholder="Search songs, artists, Maithili geet..."
+              className="w-full"
             />
           </div>
         )}
 
         {/* Navigation Links & Action Buttons */}
-        <nav className="flex items-center gap-2 sm:gap-4">
+        <nav className="flex items-center gap-2 sm:gap-3">
           <Link
             to="/"
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
@@ -68,6 +68,21 @@ export default function Navbar({ onSearchChange, searchTerm = "" }) {
           >
             Explore
           </Link>
+
+          {/* Admin Master Console Link (Strictly visible only to Admin) */}
+          {isAdmin && (
+            <Link
+              to="/admin"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all shadow-sm ${
+                isActive('/admin')
+                  ? 'bg-cyan-500/30 text-cyan-300 border border-cyan-400'
+                  : 'text-cyan-300 bg-cyan-950/40 hover:bg-cyan-900/50 border border-cyan-500/30 hover:text-white'
+              }`}
+            >
+              <ShieldCheck className="w-4 h-4 text-cyan-400" />
+              <span className="hidden sm:inline">Admin</span>
+            </Link>
+          )}
 
           {/* Artist Studio Portal Link */}
           {isArtist && (
@@ -79,8 +94,8 @@ export default function Navbar({ onSearchChange, searchTerm = "" }) {
                   : 'text-purple-300 bg-purple-950/40 hover:bg-purple-900/50 border border-purple-500/30 hover:text-white'
               }`}
             >
-              <Upload className="w-4 h-4 text-cyan-400 animate-bounce" />
-              <span>Artist Studio</span>
+              <Upload className="w-4 h-4 text-cyan-400" />
+              <span className="hidden sm:inline">Artist Studio</span>
             </Link>
           )}
 
@@ -98,60 +113,45 @@ export default function Navbar({ onSearchChange, searchTerm = "" }) {
 
           {/* User Auth Section */}
           {isAuthenticated ? (
-            <div className="relative">
+            <div className="flex items-center gap-2">
               <button
                 onClick={() => setProfileOpen(!profileOpen)}
-                className="flex items-center gap-2.5 p-1.5 pr-3 rounded-full bg-slate-800/80 hover:bg-slate-700/80 border border-white/10 transition-all"
+                className="flex items-center gap-2 p-1.5 pr-2.5 rounded-full bg-slate-800/80 hover:bg-slate-700/80 border border-white/10 transition-all"
               >
-                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white font-bold text-xs uppercase shadow-md">
-                  {user?.username?.charAt(0) || 'U'}
+                <div className="w-7 h-7 rounded-full overflow-hidden shrink-0 border border-emerald-400">
+                  {user?.avatar ? (
+                    <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white font-bold text-xs uppercase">
+                      {user?.username?.charAt(0) || 'U'}
+                    </div>
+                  )}
                 </div>
-                <div className="hidden md:flex flex-col text-left">
-                  <span className="text-xs font-semibold text-white leading-tight">{user?.username}</span>
-                  <span className="text-[10px] text-emerald-400 capitalize font-mono leading-tight">{user?.role}</span>
-                </div>
+                <span className="hidden md:inline text-xs font-semibold text-white leading-tight truncate max-w-[100px]">
+                  {user?.username}
+                </span>
               </button>
 
-              {/* Profile Dropdown */}
-              {profileOpen && (
-                <div className="absolute right-0 mt-2 w-56 rounded-2xl glass-card border border-white/10 p-2 shadow-2xl z-50">
-                  <div className="px-3 py-2 border-b border-white/10 mb-1">
-                    <p className="text-xs text-slate-400">Signed in as</p>
-                    <p className="text-sm font-bold text-white truncate">{user?.email}</p>
-                    <span className="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                      {user?.role}
-                    </span>
-                  </div>
-
-                  {isArtist && (
-                    <Link
-                      to="/artist/studio"
-                      onClick={() => setProfileOpen(false)}
-                      className="flex items-center gap-2.5 w-full px-3 py-2 text-xs font-medium text-purple-300 hover:bg-purple-500/10 rounded-xl transition-colors"
-                    >
-                      <Upload className="w-4 h-4 text-purple-400" />
-                      Artist Dashboard
-                    </Link>
-                  )}
-
-                  <button
-                    onClick={handleLogout}
-                    className="flex items-center gap-2.5 w-full px-3 py-2 text-xs font-medium text-rose-400 hover:bg-rose-500/10 rounded-xl transition-colors"
-                  >
-                    <LogOut className="w-4 h-4" />
-                    Sign Out
-                  </button>
-                </div>
-              )}
+              {/* Three Dot (⋮) Settings Menu */}
+              <SettingsMenu
+                onOpenProfile={onOpenProfile || (() => {})}
+                onOpenSupport={onOpenSupport || (() => {})}
+              />
             </div>
           ) : (
-            <Link
-              to="/login"
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-semibold text-xs tracking-wider uppercase shadow-lg shadow-emerald-500/25 transition-all hover:scale-105"
-            >
-              <User className="w-3.5 h-3.5" />
-              <span>Login / 3D Sign In</span>
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                to="/login"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-semibold text-xs tracking-wider uppercase shadow-lg shadow-emerald-500/25 transition-all hover:scale-105"
+              >
+                <User className="w-3.5 h-3.5" />
+                <span>Sign In</span>
+              </Link>
+              <SettingsMenu
+                onOpenProfile={onOpenProfile || (() => {})}
+                onOpenSupport={onOpenSupport || (() => {})}
+              />
+            </div>
           )}
         </nav>
       </div>

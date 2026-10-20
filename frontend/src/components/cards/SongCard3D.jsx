@@ -1,15 +1,18 @@
 import React from 'react';
-import { Play, Pause, Music2, Disc3 } from 'lucide-react';
+import { Play, Pause, Music2, Disc3, Heart } from 'lucide-react';
 import { useMusic } from '../../context/MusicContext';
 import { getCoverImage } from '../../utils/helpers';
 import GlassCard from '../common/GlassCard';
 
 export default function SongCard3D({ song, playlist = [], index = 0 }) {
-  const { currentSong, isPlaying, playSong, togglePlay } = useMusic();
+  const { currentSong, isPlaying, playSong, togglePlay, likedSongs, toggleLike } = useMusic();
 
   const isCurrent = (currentSong?._id || currentSong?.id) === (song?._id || song?.id);
   const isThisPlaying = isCurrent && isPlaying;
-  const cover = getCoverImage(song?._id || song?.title, index);
+  const cover = song?.cover || getCoverImage(song?._id || song?.title, index);
+
+  const songId = song?._id || song?.id;
+  const isLiked = likedSongs?.some(s => (s._id || s.id) === songId);
 
   const handlePlayClick = (e) => {
     e.stopPropagation();
@@ -20,9 +23,14 @@ export default function SongCard3D({ song, playlist = [], index = 0 }) {
     }
   };
 
+  const handleLikeClick = (e) => {
+    e.stopPropagation();
+    toggleLike(song);
+  };
+
   const artistName = typeof song?.artist === 'object'
     ? song?.artist?.username || 'Unknown Artist'
-    : 'Featured Artist';
+    : song?.artist || 'Featured Artist';
 
   return (
     <GlassCard
@@ -38,6 +46,20 @@ export default function SongCard3D({ song, playlist = [], index = 0 }) {
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
           loading="lazy"
         />
+
+        {/* Heart Like Button */}
+        <button
+          type="button"
+          onClick={handleLikeClick}
+          title={isLiked ? "Unlike" : "Like Song"}
+          className={`absolute top-2 left-2 z-20 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+            isLiked
+              ? 'bg-rose-500 text-white scale-100 shadow-md shadow-rose-500/40'
+              : 'bg-black/60 text-slate-300 opacity-0 group-hover:opacity-100 hover:text-rose-400 hover:scale-110'
+          }`}
+        >
+          <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
+        </button>
 
         {/* 3D Vinyl Slide Peek on Hover */}
         <div

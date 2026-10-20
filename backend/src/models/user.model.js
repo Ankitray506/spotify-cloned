@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 
-
 const userSchema = new mongoose.Schema({
     username: {
         type: String,
@@ -18,14 +17,41 @@ const userSchema = new mongoose.Schema({
     },
     role: {
         type: String,
-        enum: [ 'user', 'artist' ],
+        enum: [ 'user', 'artist', 'admin' ],
         default: 'user',
+    },
+    isBlocked: {
+        type: Boolean,
+        default: false,
+    },
+    listenCount: {
+        type: Number,
+        default: 0,
+    },
+    lastLogin: {
+        type: Date,
+        default: Date.now,
+    },
+    avatar: {
+        type: String,
+        default: "",
+    },
+    bio: {
+        type: String,
+        default: "",
+    },
+    favoriteGenres: [{
+        type: String,
+    }],
+    likedSongs: [{
+        type: Object,
+    }],
+    createdAt: {
+        type: Date,
+        default: Date.now,
     }
+}, { timestamps: true });
 
-})
-
-
-const userModel = mongoose.model("user", userSchema)
-
+const userModel = mongoose.model("user", userSchema);
 
 module.exports = userModel;

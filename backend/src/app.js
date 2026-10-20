@@ -4,6 +4,8 @@ const cors = require('cors');
 const path = require('path');
 const authRoutes = require('./routes/auth.routes');
 const musicRoutes = require('./routes/music.routes');
+const liveMusicRoutes = require('./routes/liveMusic.routes');
+const adminRoutes = require('./routes/admin.routes');
 
 const app = express();
 
@@ -25,6 +27,8 @@ app.use(cookieParser());
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/music', musicRoutes);
+app.use('/api/live', liveMusicRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Serve static frontend in production if built
 const frontendDistPath = path.join(__dirname, '../../frontend/dist');

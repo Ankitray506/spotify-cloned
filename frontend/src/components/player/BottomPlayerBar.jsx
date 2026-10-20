@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Shuffle, Repeat, Disc3, Maximize2 } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Shuffle, Repeat, Disc3, Maximize2, Heart, Zap, Mic2 } from 'lucide-react';
 import { useMusic } from '../../context/MusicContext';
 import { formatTime, getCoverImage } from '../../utils/helpers';
 
@@ -7,13 +7,17 @@ export default function BottomPlayerBar() {
   const {
     currentSong,
     isPlaying,
+    isCached,
+    likedSongs,
     currentTime,
     duration,
     volume,
     isMuted,
     isLoop,
     isShuffle,
+    isLyricsOpen,
     togglePlay,
+    toggleLike,
     nextSong,
     prevSong,
     seek,
@@ -21,13 +25,16 @@ export default function BottomPlayerBar() {
     toggleMute,
     toggleLoop,
     toggleShuffle,
-    toggleFullscreen3D
+    toggleFullscreen3D,
+    toggleLyrics
   } = useMusic();
 
   if (!currentSong) return null;
 
-  const cover = getCoverImage(currentSong._id || currentSong.title);
+  const cover = currentSong?.cover || getCoverImage(currentSong._id || currentSong.title);
   const progressPercent = duration ? (currentTime / duration) * 100 : 0;
+  const songId = currentSong?._id || currentSong?.id;
+  const isLiked = likedSongs?.some(s => (s._id || s.id) === songId);
 
   const handleSeekChange = (e) => {
     const val = parseFloat(e.target.value);
@@ -37,7 +44,7 @@ export default function BottomPlayerBar() {
 
   const artistName = typeof currentSong?.artist === 'object'
     ? currentSong?.artist?.username || 'Unknown Artist'
-    : 'Featured Artist';
+    : currentSong?.artist || 'Featured Artist';
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 px-2 sm:px-4 pb-2 sm:pb-3 pointer-events-none">
@@ -65,13 +72,31 @@ export default function BottomPlayerBar() {
             </div>
 
             <div className="flex flex-col min-w-0">
-              <span className="text-sm font-bold text-white truncate hover:underline cursor-pointer" onClick={toggleFullscreen3D}>
-                {currentSong.title}
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-bold text-white truncate hover:underline cursor-pointer" onClick={toggleFullscreen3D}>
+                  {currentSong.title}
+                </span>
+                {isCached && (
+                  <span title="Offline Cached (0 MB Data Usage)" className="shrink-0 flex items-center gap-0.5 text-[9px] font-mono text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 px-1 py-0.2 rounded">
+                    <Zap className="w-2.5 h-2.5 fill-current" />
+                  </span>
+                )}
+              </div>
               <span className="text-xs text-slate-400 truncate">
                 {artistName}
               </span>
             </div>
+
+            {/* Like Heart Button */}
+            <button
+              onClick={() => toggleLike(currentSong)}
+              title={isLiked ? "Unlike" : "Save to Liked Songs"}
+              className={`p-1.5 rounded-full transition-colors ml-1 ${
+                isLiked ? 'text-rose-500' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
+            </button>
           </div>
 
           {/* Center: Controls & Timeline Scrubber */}
@@ -168,6 +193,20 @@ export default function BottomPlayerBar() {
                 className="w-20 h-1.5 bg-slate-800 rounded-full appearance-none cursor-pointer accent-emerald-400"
               />
             </div>
+
+            {/* Live Synced Lyrics Button */}
+            <button
+              onClick={toggleLyrics}
+              title="Open Live Synchronized Lyrics (Press L)"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-mono font-bold tracking-wider uppercase transition-all hover:scale-105 shadow-md ${
+                isLyricsOpen
+                  ? 'bg-cyan-500/30 border-cyan-400 text-cyan-300 shadow-cyan-500/30'
+                  : 'bg-cyan-500/10 hover:bg-cyan-500/20 border-cyan-500/30 text-cyan-300 shadow-cyan-500/10'
+              }`}
+            >
+              <Mic2 className="w-4 h-4 text-cyan-400" />
+              <span className="hidden sm:inline">Lyrics</span>
+            </button>
 
             {/* 3D Turntable Launcher Button */}
             <button

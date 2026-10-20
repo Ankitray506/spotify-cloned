@@ -1,13 +1,39 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
-import { MusicProvider } from './context/MusicContext';
+import { MusicProvider, useMusic } from './context/MusicContext';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import ArtistStudioPage from './pages/ArtistStudioPage';
 import AlbumDetailPage from './pages/AlbumDetailPage';
+import AdminDashboardPage from './pages/AdminDashboardPage';
 import BottomPlayerBar from './components/player/BottomPlayerBar';
 import Fullscreen3DPlayer from './components/player/Fullscreen3DPlayer';
+import LiveLyricsModal from './components/player/LiveLyricsModal';
+import GuestLimitModal from './components/common/GuestLimitModal';
+
+function GlobalPlayerAndModals() {
+  const { showGuestLimitModal, setShowGuestLimitModal } = useMusic();
+
+  return (
+    <>
+      {/* Persistent Bottom 3D Music Player Bar */}
+      <BottomPlayerBar />
+
+      {/* Fullscreen 3D Vinyl Turntable Overlay Modal */}
+      <Fullscreen3DPlayer />
+
+      {/* Live Synchronized Karaoke Lyrics Modal */}
+      <LiveLyricsModal />
+
+      {/* Guest 5-Song Limit Prompt Modal */}
+      <GuestLimitModal
+        isOpen={showGuestLimitModal}
+        onClose={() => setShowGuestLimitModal(false)}
+      />
+    </>
+  );
+}
 
 export default function App() {
   return (
@@ -22,14 +48,12 @@ export default function App() {
               <Route path="/login" element={<LoginPage />} />
               <Route path="/artist/studio" element={<ArtistStudioPage />} />
               <Route path="/album/:id" element={<AlbumDetailPage />} />
+              <Route path="/admin" element={<AdminDashboardPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
 
-            {/* Persistent Bottom 3D Music Player Bar */}
-            <BottomPlayerBar />
-
-            {/* Fullscreen 3D Vinyl Turntable Overlay Modal */}
-            <Fullscreen3DPlayer />
+            {/* Global Overlays & Players */}
+            <GlobalPlayerAndModals />
 
           </div>
         </MusicProvider>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Disc3, ListMusic, Sparkles } from 'lucide-react';
+import { X, Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Disc3, ListMusic, Sparkles, Mic2 } from 'lucide-react';
 import { useMusic } from '../../context/MusicContext';
 import { formatTime, getCoverImage } from '../../utils/helpers';
 import VinylTurntable3D from '../3d/VinylTurntable3D';
@@ -15,6 +15,7 @@ export default function Fullscreen3DPlayer() {
     isMuted,
     queue,
     queueIndex,
+    isLyricsOpen,
     togglePlay,
     nextSong,
     prevSong,
@@ -23,7 +24,8 @@ export default function Fullscreen3DPlayer() {
     toggleMute,
     playSong,
     isFullscreen3D,
-    toggleFullscreen3D
+    toggleFullscreen3D,
+    toggleLyrics
   } = useMusic();
 
   const [showQueue, setShowQueue] = useState(false);
@@ -68,6 +70,16 @@ export default function Fullscreen3DPlayer() {
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={toggleLyrics}
+            className={`p-2.5 rounded-xl border border-white/10 transition-colors ${
+              isLyricsOpen ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40' : 'bg-slate-900/60 text-slate-300 hover:text-white'
+            }`}
+            title="Toggle Live Synced Lyrics (L)"
+          >
+            <Mic2 className="w-5 h-5" />
+          </button>
+
           <button
             onClick={() => setShowQueue(!showQueue)}
             className={`p-2.5 rounded-xl border border-white/10 transition-colors ${
