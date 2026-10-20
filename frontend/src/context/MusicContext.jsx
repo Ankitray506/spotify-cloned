@@ -103,11 +103,108 @@ export function MusicProvider({ children }) {
   const isShuffleRef = useRef(false);
   const isLoopRef = useRef(false);
   const nextSongRef = useRef(null);
+  const currentSongRef = useRef(null);
+
+  // YouTube Audio Player refs
+  const ytPlayerRef = useRef(null);
+  const isYtReadyRef = useRef(false);
 
   useEffect(() => { queueRef.current = queue; }, [queue]);
   useEffect(() => { queueIndexRef.current = queueIndex; }, [queueIndex]);
   useEffect(() => { isShuffleRef.current = isShuffle; }, [isShuffle]);
   useEffect(() => { isLoopRef.current = isLoop; }, [isLoop]);
+  useEffect(() => { currentSongRef.current = currentSong; }, [currentSong]);
+
+  // Load YouTube IFrame API script once
+  const initYTPlayer = useCallback(() => {
+    if (!window.YT || !window.YT.Player || ytPlayerRef.current) return;
+    try {
+      ytPlayerRef.current = new window.YT.Player('aura-hidden-yt-iframe', {
+        height: '1',
+        width: '1',
+        playerVars: {
+          autoplay: 1,
+          controls: 0,
+          disablekb: 1,
+          fs: 0,
+          modestbranding: 1,
+          rel: 0,
+          playsinline: 1
+        },
+        events: {
+          onReady: (event) => {
+            isYtReadyRef.current = true;
+            if (currentSongRef.current?.isYouTube && currentSongRef.current?.videoId) {
+              event.target.loadVideoById(currentSongRef.current.videoId);
+              event.target.playVideo();
+            }
+          },
+          onStateChange: (event) => {
+            if (event.data === 1) { // PLAYING
+              setIsPlaying(true);
+              const dur = event.target.getDuration();
+              if (dur > 0) setDuration(dur);
+            } else if (event.data === 2) { // PAUSED
+              setIsPlaying(false);
+            } else if (event.data === 0) { // ENDED
+              if (isLoopRef.current) {
+                event.target.seekTo(0);
+                event.target.playVideo();
+              } else if (nextSongRef.current) {
+                nextSongRef.current();
+              }
+            }
+          },
+          onError: () => {
+            setIsPlaying(false);
+          }
+        }
+      });
+    } catch (e) {
+      console.warn("YouTube iframe init warning:", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!window.YT) {
+      const tag = document.createElement('script');
+      tag.src = "https://www.youtube.com/iframe_api";
+      const firstScriptTag = document.getElementsByTagName('script')[0];
+      firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+    }
+
+    const prevReady = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => {
+      if (prevReady) prevReady();
+      isYtReadyRef.current = true;
+      initYTPlayer();
+    };
+
+    if (window.YT && window.YT.Player) {
+      isYtReadyRef.current = true;
+      initYTPlayer();
+    }
+  }, [initYTPlayer]);
+
+  // YouTube live playback ticker (updates currentTime & actual duration)
+  useEffect(() => {
+    let timer;
+    if (currentSong?.isYouTube) {
+      timer = setInterval(() => {
+        if (ytPlayerRef.current && typeof ytPlayerRef.current.getCurrentTime === 'function') {
+          try {
+            const cur = ytPlayerRef.current.getCurrentTime() || 0;
+            const dur = ytPlayerRef.current.getDuration() || 0;
+            setCurrentTime(cur);
+            if (dur > 0 && dur !== duration) {
+              setDuration(dur);
+            }
+          } catch (e) {}
+        }
+      }, 500);
+    }
+    return () => clearInterval(timer);
+  }, [currentSong, duration]);
 
   // Audio element event listeners
   useEffect(() => {
@@ -172,7 +269,8 @@ export function MusicProvider({ children }) {
 
   // Play a specific song
   const playSong = useCallback((song, playlist = null) => {
-    if (!song || !song.uri) return;
+    if (!song) return;
+    if (!song.uri && !song.isYouTube) return;
 
     // Check Guest demo limit (5 songs for unauthenticated users)
     const isAuth = !!localStorage.getItem('token');
@@ -238,6 +336,33 @@ export function MusicProvider({ children }) {
     });
 
     setCurrentSong(song);
+    currentSongRef.current = song;
+
+    // Handle YouTube track with actual video audio playback
+    if (song.isYouTube && song.videoId) {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+      }
+
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.loadVideoById === 'function') {
+        try {
+          ytPlayerRef.current.loadVideoById(song.videoId);
+          ytPlayerRef.current.playVideo();
+          setIsPlaying(true);
+        } catch (e) {
+          console.warn("YouTube play video error:", e);
+        }
+      } else {
+        initYTPlayer();
+      }
+      return;
+    }
+
+    // Normal audio track: stop YouTube audio if active
+    if (ytPlayerRef.current && typeof ytPlayerRef.current.pauseVideo === 'function') {
+      try { ytPlayerRef.current.pauseVideo(); } catch (e) {}
+    }
 
     const audio = audioRef.current;
     audio.preload = 'auto';
@@ -258,10 +383,26 @@ export function MusicProvider({ children }) {
 
     // Check offline cache in background without delaying initial play
     isAudioCached(song.uri).then(cached => setIsCached(cached)).catch(() => {});
-  }, [initAudioAnalyser, currentSong, currentTime, duration]);
+  }, [initAudioAnalyser, currentSong, currentTime, duration, initYTPlayer]);
 
-  // Toggle play/pause - uses actual audio.paused as source of truth
+  // Toggle play/pause - supports both YouTube audio & standard audio
   const togglePlay = useCallback(() => {
+    if (currentSongRef.current?.isYouTube && ytPlayerRef.current && typeof ytPlayerRef.current.getPlayerState === 'function') {
+      try {
+        const state = ytPlayerRef.current.getPlayerState();
+        if (state === 1) { // 1 = PLAYING
+          ytPlayerRef.current.pauseVideo();
+          setIsPlaying(false);
+        } else {
+          ytPlayerRef.current.playVideo();
+          setIsPlaying(true);
+        }
+      } catch (e) {
+        console.warn("YouTube togglePlay error:", e);
+      }
+      return;
+    }
+
     const audio = audioRef.current;
     if (!audio || !audio.src) return;
 
@@ -331,6 +472,13 @@ export function MusicProvider({ children }) {
 
   // Seek to position in seconds
   const seek = useCallback((timeInSeconds) => {
+    if (currentSongRef.current?.isYouTube && ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
+      try {
+        ytPlayerRef.current.seekTo(timeInSeconds, true);
+        setCurrentTime(timeInSeconds);
+      } catch (e) {}
+      return;
+    }
     if (audioRef.current && isFinite(timeInSeconds)) {
       audioRef.current.currentTime = timeInSeconds;
       setCurrentTime(timeInSeconds);
@@ -343,11 +491,28 @@ export function MusicProvider({ children }) {
     if (newVolume > 0 && isMuted) {
       setIsMuted(false);
     }
+    if (currentSongRef.current?.isYouTube && ytPlayerRef.current && typeof ytPlayerRef.current.setVolume === 'function') {
+      try {
+        ytPlayerRef.current.setVolume(newVolume * 100);
+      } catch (e) {}
+    }
   }, [isMuted]);
 
   // Toggle mute
   const toggleMute = useCallback(() => {
-    setIsMuted(prev => !prev);
+    setIsMuted(prev => {
+      const next = !prev;
+      if (currentSongRef.current?.isYouTube && ytPlayerRef.current) {
+        try {
+          if (next && typeof ytPlayerRef.current.mute === 'function') {
+            ytPlayerRef.current.mute();
+          } else if (!next && typeof ytPlayerRef.current.unMute === 'function') {
+            ytPlayerRef.current.unMute();
+          }
+        } catch (e) {}
+      }
+      return next;
+    });
   }, []);
 
   // Toggle loop
@@ -465,6 +630,22 @@ export function MusicProvider({ children }) {
       }}
     >
       {children}
+      {/* Hidden YouTube Audio Player Target for Ad-Free Playback */}
+      <div
+        id="aura-hidden-yt-container"
+        style={{
+          position: 'fixed',
+          top: '-3000px',
+          left: '-3000px',
+          width: '1px',
+          height: '1px',
+          opacity: 0.001,
+          pointerEvents: 'none',
+          zIndex: -9999
+        }}
+      >
+        <div id="aura-hidden-yt-iframe" />
+      </div>
     </MusicContext.Provider>
   );
 }

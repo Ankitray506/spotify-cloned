@@ -550,12 +550,12 @@ async function streamYouTubeAudio(req, res) {
             });
         }
 
-        // 1. Fetch metadata using YouTube official oEmbed API
+        // 1. Fetch exact metadata using YouTube official oEmbed API
         let oembedData = null;
         try {
             const oembedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`;
             const oRes = await fetch(oembedUrl, {
-                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+                headers: { 'User-Agent': 'Mozilla/5.0' }
             });
             if (oRes.ok) {
                 oembedData = await oRes.json();
@@ -568,79 +568,25 @@ async function streamYouTubeAudio(req, res) {
         const authorName = oembedData?.author_name || 'YouTube Creator';
         const thumbnail = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 
-        // Normalize fancy Unicode characters & strip video clutter
+        // Normalize fancy Unicode characters
         const cleanTitle = rawTitle
             .normalize('NFKD')
             .replace(/[\u0300-\u036f]/g, '')
             .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '')
-            .replace(/\|.*$/g, '')
-            .replace(/\(.*?\)/g, '')
-            .replace(/\[.*?\]/g, '')
-            .replace(/official video/gi, '')
-            .replace(/full video/gi, '')
-            .replace(/lyric video/gi, '')
-            .replace(/music video/gi, '')
-            .replace(/audio/gi, '')
-            .replace(/video/gi, '')
-            .replace(/4k/gi, '')
-            .replace(/hd/gi, '')
             .trim();
 
-        // 2. Query our high-fidelity 320kbps CDN for an exact crystal-clear ad-free audio stream
-        let matchedSong = null;
-        try {
-            const searchQuery = cleanTitle || rawTitle;
-            const sUrl = `https://www.jiosaavn.com/api.php?__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&n=5&p=1&q=${encodeURIComponent(searchQuery)}`;
-            const sRes = await fetch(sUrl, {
-                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
-            });
-            if (sRes.ok) {
-                const sData = await sRes.json();
-                const validSongs = (sData.results || []).map(normalizeSong).filter(s => !!s.uri);
-                if (validSongs.length > 0) {
-                    matchedSong = validSongs[0];
-                }
-            }
-        } catch (e) {
-            console.warn("CDN search error for YT link:", e.message);
-        }
-
-        if (matchedSong && matchedSong.uri) {
-            return res.status(200).json({
-                success: true,
-                message: "High-fidelity 320kbps audio extracted from YouTube link",
-                source: "studio_cdn_320kbps",
-                song: {
-                    ...matchedSong,
-                    _id: `yt_${videoId}`,
-                    id: `yt_${videoId}`,
-                    title: cleanTitle || matchedSong.title,
-                    artist: {
-                        username: authorName || matchedSong.artist?.username || 'YouTube Artist'
-                    },
-                    album: "YouTube Ad-Free Stream",
-                    cover: thumbnail || matchedSong.cover,
-                    isLive: true,
-                    isYouTube: true,
-                    youtubeUrl: url,
-                    videoId
-                }
-            });
-        }
-
-        // 3. Fallback: If not found in CDN, return formatted YouTube track
+        // Return exact YouTube track with direct videoId
         return res.status(200).json({
             success: true,
             message: "YouTube audio stream prepared",
-            source: "youtube_stream",
             song: {
                 _id: `yt_${videoId}`,
                 id: `yt_${videoId}`,
                 title: cleanTitle || rawTitle,
                 artist: { username: authorName },
-                album: "YouTube Ad-Free Audio",
-                duration: 210,
-                uri: `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&enablejsapi=1`,
+                album: "YouTube Audio Stream",
+                duration: 0,
+                uri: '',
                 cover: thumbnail,
                 isLive: true,
                 isYouTube: true,
@@ -652,7 +598,7 @@ async function streamYouTubeAudio(req, res) {
         console.error("streamYouTubeAudio error:", error);
         return res.status(500).json({
             success: false,
-            message: "Failed to extract YouTube audio stream",
+            message: "Failed to extract YouTube video",
             error: error.message
         });
     }
