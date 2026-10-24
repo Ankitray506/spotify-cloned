@@ -103,29 +103,7 @@ export default function HomePage() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
 
-  // 0. Anonymous & Registered Visitor Analytics Tracker
-  useEffect(() => {
-    try {
-      let visitorId = localStorage.getItem('aura_visitor_id');
-      if (!visitorId) {
-        visitorId = 'vis_' + Math.random().toString(36).substring(2, 10) + '_' + Date.now();
-        localStorage.setItem('aura_visitor_id', visitorId);
-      }
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      const device = isMobile ? 'Mobile' : 'Desktop';
-      const browser = navigator.userAgent.includes('Chrome') ? 'Chrome' : navigator.userAgent.includes('Safari') ? 'Safari' : 'Browser';
 
-      axiosClient.post('/admin/visit', {
-        visitorId,
-        device,
-        browser,
-        path: window.location.pathname,
-        isRegistered: !!isAuthenticated,
-        userEmail: user?.email || '',
-        userRole: user?.role || ''
-      }).catch(() => {});
-    } catch (e) {}
-  }, [isAuthenticated, user]);
 
   // 1. Fetch Community Uploaded Tracks & Albums
   useEffect(() => {

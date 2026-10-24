@@ -10,6 +10,9 @@ router.post("/feedback", adminController.submitFeedback);
 // Public / client visitor tracking ping
 router.post("/visit", adminController.recordVisitorVisit);
 
+// Continuous music streaming tracker & active user heartbeat
+router.post("/heartbeat", adminController.recordListenHeartbeat);
+
 // Strict Admin-only endpoints
 router.get("/stats", authMiddleware.authAdmin, adminController.getAdminStats);
 router.put("/users/:id/block", authMiddleware.authAdmin, adminController.toggleBlockUser);

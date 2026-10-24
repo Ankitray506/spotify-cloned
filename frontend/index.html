@@ -30,6 +30,27 @@
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2310b981'><circle cx='12' cy='12' r='10'/><path fill='%23080b12' d='M8 11.5c3.5-1 7.5 0 9 1.5M7.5 14c3-1 6.5 0 8 1M8.5 9c4-1.2 8.5-.2 10.5 1.5'/></svg>" />
 
+    <!-- Permanent Netlify Badge & Drawer Purger Style -->
+    <style>
+      a[href*="netlify.com"],
+      a[href*="netlify.app"],
+      [class*="netlify"],
+      [id*="netlify"],
+      [data-netlify-drawer],
+      netlify-drawer-widget,
+      .netlify-drawer,
+      iframe[src*="netlify"] {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+        position: absolute !important;
+        left: -99999px !important;
+        width: 0 !important;
+        height: 0 !important;
+      }
+    </style>
+
     <!-- Structured Data (JSON-LD) for Google Rich Snippets -->
     <script type="application/ld+json">
     {

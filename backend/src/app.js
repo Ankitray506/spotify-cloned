@@ -24,6 +24,11 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cookieParser());
 
+// Instant Keep-Alive Alarm / Health Ping (0ms response to prevent Render sleep)
+app.get('/api/ping', (req, res) => {
+    res.status(200).json({ status: 'awake', timestamp: Date.now(), service: 'aura-3d-backend' });
+});
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/music', musicRoutes);

@@ -16,16 +16,22 @@ body {
 }
 
 /* Complete Netlify badge / drawer obliterator */
+a[href*="netlify.com"],
+a[href*="netlify.app"],
 [class*="netlify"],
 [id*="netlify"],
 [data-netlify-drawer],
 netlify-drawer-widget,
 .netlify-drawer,
-iframe[src*="netlify.com"] {
+iframe[src*="netlify"],
+div:has(> a[href*="netlify"]),
+div:has(> [class*="netlify"]) {
   display: none !important;
   visibility: hidden !important;
   opacity: 0 !important;
   pointer-events: none !important;
+  position: absolute !important;
+  left: -99999px !important;
   width: 0 !important;
   height: 0 !important;
 }

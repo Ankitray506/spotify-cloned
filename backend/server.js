@@ -14,12 +14,12 @@ app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
 
-// Keep-Alive Heartbeat: Prevents Render free tier from sleeping every 15 minutes
+// Keep-Alive Heartbeat: Prevents Render free tier from sleeping (Every 3 minutes)
 const BACKEND_URL = process.env.RENDER_EXTERNAL_URL || 'https://aura-3d-backend.onrender.com';
 setInterval(() => {
-    https.get(`${BACKEND_URL}/api/live/trending`, (res) => {
-        console.log(`[Keep-Alive] Self-ping successful (Status: ${res.statusCode}) - Server kept awake.`);
+    https.get(`${BACKEND_URL}/api/ping`, (res) => {
+        console.log(`[Keep-Alive Alarm] Self-ping status: ${res.statusCode} - Backend 100% awake`);
     }).on('error', (err) => {
-        console.warn(`[Keep-Alive] Ping notification: ${err.message}`);
+        console.warn(`[Keep-Alive Alarm] Ping notice: ${err.message}`);
     });
-}, 10 * 60 * 1000); // Runs every 10 minutes
+}, 3 * 60 * 1000);

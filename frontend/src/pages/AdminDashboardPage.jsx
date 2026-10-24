@@ -227,55 +227,60 @@ export default function AdminDashboardPage() {
         {/* ================= 4 CLEAN HIGH-IMPACT METRIC CARDS ================= */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           
-          {/* 1. Website Visitors & Traffic */}
+          {/* 1. Live Active Users (Right Now) */}
           <GlassCard glowColor="emerald" className="p-5 border-emerald-500/30">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-mono text-emerald-400 uppercase tracking-wider font-bold">Unique Visitors</span>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+                <span className="text-xs font-mono text-emerald-400 uppercase tracking-wider font-bold">Live Active Now</span>
+              </div>
               <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400">
-                <Eye className="w-4 h-4" />
+                <Activity className="w-4 h-4" />
               </div>
             </div>
-            <div className="text-3xl font-black font-['Space_Grotesk'] text-white">
-              {metrics.uniqueVisitors || 0}
+            <div className="text-3xl font-black font-['Space_Grotesk'] text-emerald-300">
+              {metrics.liveActiveUsers || 1} <span className="text-sm font-normal text-slate-400 font-sans">online</span>
             </div>
           </GlassCard>
 
-          {/* 2. Registered Users */}
+          {/* 2. Total Streaming Time */}
           <GlassCard glowColor="cyan" className="p-5 border-cyan-500/30">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-mono text-cyan-400 uppercase tracking-wider font-bold">Registered Users</span>
+              <span className="text-xs font-mono text-cyan-400 uppercase tracking-wider font-bold">Total Music Streamed</span>
               <div className="w-8 h-8 rounded-lg bg-cyan-500/10 flex items-center justify-center text-cyan-400">
+                <Headphones className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="text-3xl font-black font-['Space_Grotesk'] text-white">
+              {(metrics.totalStreamingMinutes || 0) >= 60 
+                ? `${((metrics.totalStreamingMinutes || 0) / 60).toFixed(1)} hrs` 
+                : `${metrics.totalStreamingMinutes || 0} mins`}
+            </div>
+          </GlassCard>
+
+          {/* 3. Total Audience & Users */}
+          <GlassCard glowColor="purple" className="p-5 border-purple-500/30">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-mono text-purple-400 uppercase tracking-wider font-bold">Audience & Users</span>
+              <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-400">
                 <Users className="w-4 h-4" />
               </div>
             </div>
             <div className="text-3xl font-black font-['Space_Grotesk'] text-white">
-              {metrics.totalUsers || 0}
+              {metrics.totalUsers || 0} <span className="text-sm font-normal text-slate-400 font-sans">({metrics.uniqueVisitors || 0} visitors)</span>
             </div>
           </GlassCard>
 
-          {/* 3. Conversion Funnel Rate */}
-          <GlassCard glowColor="purple" className="p-5 border-purple-500/30">
+          {/* 4. Conversion Funnel Rate */}
+          <GlassCard glowColor="amber" className="p-5 border-amber-500/30">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-mono text-purple-400 uppercase tracking-wider font-bold">Conversion Rate</span>
-              <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-400">
+              <span className="text-xs font-mono text-amber-400 uppercase tracking-wider font-bold">Conversion Rate</span>
+              <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400">
                 <TrendingUp className="w-4 h-4" />
               </div>
             </div>
-            <div className="text-3xl font-black font-['Space_Grotesk'] text-purple-300">
+            <div className="text-3xl font-black font-['Space_Grotesk'] text-amber-300">
               {metrics.conversionRate || "0.0%"}
-            </div>
-          </GlassCard>
-
-          {/* 4. Catalog Uploads */}
-          <GlassCard glowColor="amber" className="p-5 border-amber-500/30">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-mono text-amber-400 uppercase tracking-wider font-bold">Artist Tracks</span>
-              <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400">
-                <Disc3 className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="text-3xl font-black font-['Space_Grotesk'] text-white">
-              {metrics.totalTracks || 0}
             </div>
           </GlassCard>
 
@@ -366,12 +371,112 @@ export default function AdminDashboardPage() {
               </div>
             </div>
 
+            {/* Top Music Streamers Leaderboard */}
+            {(stats?.topStreamers || []).length > 0 && (
+              <div className="rounded-2xl glass-card border border-emerald-500/30 overflow-hidden bg-slate-950/80">
+                <div className="p-4 border-b border-white/10 flex items-center justify-between bg-emerald-950/20">
+                  <div className="flex items-center gap-2">
+                    <Trophy className="w-4 h-4 text-amber-400" />
+                    <h3 className="text-sm font-bold text-white font-['Space_Grotesk']">Top Active Listeners (Streaming Leaderboard)</h3>
+                  </div>
+                  <span className="text-[11px] font-mono text-emerald-300 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
+                    Ranked by Minutes Listened
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-white/5 text-slate-400 uppercase font-mono text-[10px]">
+                      <tr>
+                        <th className="px-4 py-3">Rank</th>
+                        <th className="px-4 py-3">Listener Identity</th>
+                        <th className="px-4 py-3">Device / Smartphone</th>
+                        <th className="px-4 py-3">Music Stream Time</th>
+                        <th className="px-4 py-3">Last Song Played</th>
+                        <th className="px-4 py-3">Presence</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5 font-mono">
+                      {stats.topStreamers.map((s, index) => (
+                        <tr key={s._id || index} className="hover:bg-white/[0.02]">
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
+                              index === 0 ? 'bg-amber-400 text-black shadow-lg shadow-amber-400/30' :
+                              index === 1 ? 'bg-slate-300 text-black' :
+                              index === 2 ? 'bg-amber-700 text-white' : 'bg-white/10 text-slate-300'
+                            }`}>
+                              #{index + 1}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div>
+                              <div className="font-bold text-slate-100 flex items-center gap-1.5">
+                                <span>{s.userName || (s.isRegistered ? s.userEmail?.split('@')[0] : 'Guest Listener')}</span>
+                                {s.isRegistered && (
+                                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 uppercase">
+                                    {s.userRole || 'user'}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[11px] text-slate-400 font-sans">
+                                {s.userPhone ? `📱 ${s.userPhone} • ` : ''}{s.userEmail || s.visitorId?.substring(0, 16)}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              {s.device === 'Mobile' ? (
+                                <Smartphone className="w-4 h-4 text-cyan-400 shrink-0" />
+                              ) : (
+                                <Monitor className="w-4 h-4 text-emerald-400 shrink-0" />
+                              )}
+                              <span className="text-slate-200">{s.deviceName || `${s.device} • ${s.browser}`}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 font-bold">
+                              <Headphones className="w-3.5 h-3.5" />
+                              {s.listenMinutes || 0} mins
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-slate-300 font-sans truncate max-w-[160px]">
+                            {s.lastSongPlayed?.title ? (
+                              <span title={`${s.lastSongPlayed.title} - ${s.lastSongPlayed.artist}`}>
+                                🎵 {s.lastSongPlayed.title}
+                              </span>
+                            ) : (
+                              <span className="text-slate-500">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            {s.isLiveNow ? (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold">
+                                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                                LIVE NOW
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 text-[11px]">
+                                {new Date(s.lastActiveAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
             {/* Live Recent Visitor Log Table */}
             <div className="rounded-2xl glass-card border border-white/10 overflow-hidden bg-slate-950/80">
               <div className="p-4 border-b border-white/10 flex items-center justify-between">
-                <h3 className="text-sm font-bold text-white">Live Visitor Stream</h3>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Live Visitor Stream & Device Identification</h3>
+                  <p className="text-[11px] text-slate-400">Shows exact phone model, listening time, and active users in real-time</p>
+                </div>
                 <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/30">
-                  Real-Time
+                  Real-Time Feed
                 </span>
               </div>
 
@@ -379,12 +484,12 @@ export default function AdminDashboardPage() {
                 <table className="w-full text-left text-xs">
                   <thead className="bg-white/5 text-slate-400 uppercase font-mono text-[10px]">
                     <tr>
-                      <th className="px-4 py-3">Device / Browser</th>
-                      <th className="px-4 py-3">Visitor ID</th>
+                      <th className="px-4 py-3">Device / Smartphone Model</th>
+                      <th className="px-4 py-3">Listener Identity</th>
+                      <th className="px-4 py-3">Music Stream Time</th>
                       <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3">Page Path</th>
-                      <th className="px-4 py-3">Visits</th>
-                      <th className="px-4 py-3">Time</th>
+                      <th className="px-4 py-3">Visits & Path</th>
+                      <th className="px-4 py-3">Last Active</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5 font-mono">
@@ -398,38 +503,73 @@ export default function AdminDashboardPage() {
                               ) : (
                                 <Monitor className="w-4 h-4 text-emerald-400 shrink-0" />
                               )}
-                              <span className="text-slate-200">{v.device} • {v.browser}</span>
+                              <div>
+                                <div className="text-slate-100 font-bold">{v.deviceName || `${v.device} • ${v.browser}`}</div>
+                                <div className="text-[10px] text-slate-400 font-sans">{v.browser} • {v.os}</div>
+                              </div>
                             </div>
-                          </td>
-                          <td className="px-4 py-3 text-slate-400 truncate max-w-[140px]">
-                            {v.visitorId}
                           </td>
                           <td className="px-4 py-3">
                             {v.isRegistered ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
-                                Registered ({v.userRole || 'user'})
+                              <div>
+                                <div className="text-emerald-300 font-bold flex items-center gap-1">
+                                  <span>{v.userName || v.userEmail?.split('@')[0]}</span>
+                                  <span className="text-[9px] px-1 rounded bg-emerald-500/20 text-emerald-400 uppercase">
+                                    {v.userRole || 'user'}
+                                  </span>
+                                </div>
+                                <div className="text-[11px] text-slate-300 font-sans">
+                                  {v.userPhone ? `📱 ${v.userPhone} • ` : ''}{v.userEmail}
+                                </div>
+                              </div>
+                            ) : (
+                              <div>
+                                <span className="text-slate-300 font-sans font-semibold">Guest Listener</span>
+                                <div className="text-[10px] text-slate-500 truncate max-w-[120px]">
+                                  {v.visitorId}
+                                </div>
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            {(v.listenMinutes || 0) > 0 ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] text-emerald-300 font-bold">
+                                <Headphones className="w-3.5 h-3.5 text-emerald-400" />
+                                {v.listenMinutes} mins
+                              </span>
+                            ) : (
+                              <span className="text-slate-500 text-[11px]">Browsing</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            {v.isLiveNow ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold">
+                                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                                LIVE NOW
+                              </span>
+                            ) : v.isRegistered ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                                Registered
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 bg-white/5 border border-white/10 px-2 py-0.5 rounded-full">
-                                Guest Listener
+                                Guest
                               </span>
                             )}
                           </td>
                           <td className="px-4 py-3 text-slate-300">
-                            {v.lastPath || '/'}
+                            <div>{v.visitsCount || 1} visits</div>
+                            <div className="text-[10px] text-slate-500">{v.lastPath || '/'}</div>
                           </td>
                           <td className="px-4 py-3 text-slate-400">
-                            {v.visitsCount || 1}
-                          </td>
-                          <td className="px-4 py-3 text-slate-500">
-                            {new Date(v.lastVisitedAt || v.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {new Date(v.lastActiveAt || v.lastVisitedAt || v.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </td>
                         </tr>
                       ))
                     ) : (
                       <tr>
                         <td colSpan={6} className="px-4 py-8 text-center text-slate-500 font-sans">
-                          No visitor logs recorded yet. Visit the homepage to initialize traffic tracking!
+                          No visitor logs recorded yet. Open the homepage to start tracking!
                         </td>
                       </tr>
                     )}

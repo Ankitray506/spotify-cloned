@@ -6,12 +6,32 @@ import './index.css';
 // Automatically remove Netlify badge/drawer widget if injected
 if (typeof window !== 'undefined') {
   const purgeNetlifyBadge = () => {
-    document.querySelectorAll('[class*="netlify"], [id*="netlify"], netlify-drawer-widget, iframe[src*="netlify"]').forEach(el => el.remove());
-    document.querySelectorAll('div, button, a').forEach(el => {
-      if (el.textContent && el.textContent.toLowerCase().includes('powered by netlify')) {
+    // 1. Selector purge
+    document.querySelectorAll('[class*="netlify"], [id*="netlify"], netlify-drawer-widget, iframe[src*="netlify"], a[href*="netlify.com"]').forEach(el => {
+      try {
         el.style.setProperty('display', 'none', 'important');
         el.remove();
-      }
+      } catch (e) {}
+    });
+
+    // 2. Text-content & Shadow DOM piercing purge
+    document.querySelectorAll('body *').forEach(el => {
+      try {
+        if (el.shadowRoot) {
+          el.shadowRoot.querySelectorAll('*').forEach(shadowEl => {
+            if (shadowEl.textContent && /powered\s+by\s+netlify/i.test(shadowEl.textContent)) {
+              shadowEl.style.setProperty('display', 'none', 'important');
+              shadowEl.remove();
+            }
+          });
+        }
+        if (el.textContent && /powered\s+by\s+netlify/i.test(el.textContent)) {
+          if (el.children.length === 0 || el.tagName === 'A' || el.tagName === 'BUTTON' || (el.offsetWidth > 0 && el.offsetWidth < 300)) {
+            el.style.setProperty('display', 'none', 'important');
+            el.remove();
+          }
+        }
+      } catch (e) {}
     });
   };
   purgeNetlifyBadge();

@@ -7,7 +7,20 @@ const bcrypt = require("bcryptjs");
 // ================= RECORD ANONYMOUS / AUTHENTICATED VISITOR PING =================
 async function recordVisitorVisit(req, res) {
     try {
-        const { visitorId, device, browser, os, path, isRegistered, userEmail, userRole } = req.body;
+        const {
+            visitorId,
+            device,
+            deviceName,
+            browser,
+            os,
+            path,
+            isRegistered,
+            userEmail,
+            userName,
+            userPhone,
+            userRole
+        } = req.body;
+
         if (!visitorId) {
             return res.status(400).json({ status: "ignored_no_id" });
         }
@@ -16,16 +29,20 @@ async function recordVisitorVisit(req, res) {
 
         const updateData = {
             device: device || 'Desktop',
+            deviceName: deviceName || (device === 'Mobile' ? 'Mobile Smartphone' : 'Desktop PC'),
             browser: browser || 'Browser',
             os: os || 'Unknown',
             ip: typeof ip === 'string' ? ip.split(',')[0].trim() : '',
             lastPath: path || '/',
+            lastActiveAt: new Date(),
             lastVisitedAt: new Date()
         };
 
         if (isRegistered) {
             updateData.isRegistered = true;
             if (userEmail) updateData.userEmail = userEmail;
+            if (userName) updateData.userName = userName;
+            if (userPhone) updateData.userPhone = userPhone;
             if (userRole) updateData.userRole = userRole;
         }
 
@@ -45,12 +62,98 @@ async function recordVisitorVisit(req, res) {
     }
 }
 
+// ================= RECORD MUSIC STREAMING & ACTIVE USER HEARTBEAT =================
+async function recordListenHeartbeat(req, res) {
+    try {
+        const {
+            visitorId,
+            secondsStreamed = 0,
+            songTitle,
+            songArtist,
+            isRegistered,
+            userEmail,
+            userName,
+            userPhone,
+            userRole,
+            deviceName,
+            device,
+            browser
+        } = req.body;
+
+        if (!visitorId) {
+            return res.status(200).json({ status: "ignored_no_id" });
+        }
+
+        const validSeconds = Math.min(Math.max(0, Number(secondsStreamed) || 0), 120);
+        const now = new Date();
+
+        const updateDoc = {
+            lastActiveAt: now,
+            lastVisitedAt: now
+        };
+
+        if (deviceName) updateDoc.deviceName = deviceName;
+        if (device) updateDoc.device = device;
+        if (browser) updateDoc.browser = browser;
+
+        if (isRegistered) {
+            updateDoc.isRegistered = true;
+            if (userEmail) updateDoc.userEmail = userEmail;
+            if (userName) updateDoc.userName = userName;
+            if (userPhone) updateDoc.userPhone = userPhone;
+            if (userRole) updateDoc.userRole = userRole;
+        }
+
+        if (songTitle) {
+            updateDoc.lastSongPlayed = {
+                title: String(songTitle).slice(0, 100),
+                artist: String(songArtist || '').slice(0, 100)
+            };
+        }
+
+        const incDoc = {};
+        if (validSeconds > 0) {
+            incDoc.totalListenSeconds = validSeconds;
+        }
+
+        const visitor = await visitorModel.findOneAndUpdate(
+            { visitorId },
+            {
+                $set: updateDoc,
+                ...(Object.keys(incDoc).length > 0 ? { $inc: incDoc } : {})
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+
+        // If registered user, also sync with user's listenCount if significant play
+        if (isRegistered && userEmail && validSeconds >= 20) {
+            await userModel.updateOne(
+                { email: userEmail },
+                { $inc: { listenCount: 1 }, $set: { lastLogin: now } }
+            ).catch(() => {});
+        }
+
+        return res.status(200).json({
+            status: "heartbeat_ok",
+            totalListenMinutes: Math.round((visitor.totalListenSeconds || 0) / 60),
+            isLive: true
+        });
+    } catch (err) {
+        console.warn("recordListenHeartbeat error:", err.message);
+        return res.status(200).json({ status: "error_ignored" });
+    }
+}
+
 // ================= GET /api/admin/stats =================
 async function getAdminStats(req, res) {
     try {
+        const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
+
         const [
             totalUsers, totalArtists, totalAdmins, totalBlocked, totalTracks, totalFeedback,
-            uniqueVisitors, registeredVisitors, totalVisitsAggregate
+            uniqueVisitors, registeredVisitors, totalVisitsAggregate,
+            liveActiveVisitorsCount, totalStreamAggregate,
+            topStreamersRaw
         ] = await Promise.all([
             userModel.countDocuments({ role: 'user' }),
             userModel.countDocuments({ role: 'artist' }),
@@ -60,20 +163,34 @@ async function getAdminStats(req, res) {
             feedbackModel.countDocuments(),
             visitorModel.countDocuments(),
             visitorModel.countDocuments({ isRegistered: true }),
-            visitorModel.aggregate([{ $group: { _id: null, total: { $sum: "$visitsCount" } } }])
+            visitorModel.aggregate([{ $group: { _id: null, total: { $sum: "$visitsCount" } } }]),
+            visitorModel.countDocuments({ lastActiveAt: { $gte: twoMinutesAgo } }),
+            visitorModel.aggregate([{ $group: { _id: null, totalSeconds: { $sum: "$totalListenSeconds" } } }]),
+            visitorModel.find({ totalListenSeconds: { $gt: 0 } })
+                .sort({ totalListenSeconds: -1 })
+                .limit(10)
+                .select("visitorId deviceName device browser isRegistered userName userEmail userPhone userRole totalListenSeconds lastSongPlayed lastActiveAt")
         ]);
 
         const allUsersCount = totalUsers + totalArtists + totalAdmins;
         const totalVisitsCount = totalVisitsAggregate?.[0]?.total || uniqueVisitors || 0;
         const guestVisitors = Math.max(0, uniqueVisitors - registeredVisitors);
         const conversionRate = uniqueVisitors > 0 ? ((allUsersCount / uniqueVisitors) * 100).toFixed(1) : "0.0";
+        const totalStreamingMinutes = Math.round((totalStreamAggregate?.[0]?.totalSeconds || 0) / 60);
+
+        // Format top streamers with readable minutes
+        const topStreamers = (topStreamersRaw || []).map(s => ({
+            ...s.toObject(),
+            listenMinutes: Math.round((s.totalListenSeconds || 0) / 60),
+            isLiveNow: (Date.now() - new Date(s.lastActiveAt).getTime()) <= (2 * 60 * 1000)
+        }));
 
         // All users list for admin management
         const allUsers = await userModel.find()
             .sort({ createdAt: -1 })
             .select("username email phone role isVerified isBlocked listenCount avatar lastLogin createdAt");
 
-        // Top listeners sorted by listenCount descending
+        // Top listeners from user accounts
         const topListeners = await userModel.find()
             .sort({ listenCount: -1, createdAt: -1 })
             .limit(10)
@@ -84,11 +201,22 @@ async function getAdminStats(req, res) {
             .sort({ createdAt: -1 })
             .limit(25);
 
-        // Recent site visitors (Guest & Registered)
-        const recentVisitors = await visitorModel.find()
-            .sort({ lastVisitedAt: -1 })
-            .limit(30)
-            .select("visitorId device browser os isRegistered userEmail userRole visitsCount lastPath lastVisitedAt");
+        // Recent site visitors (Guest & Registered) with real-time live presence & total listen time
+        const rawRecentVisitors = await visitorModel.find()
+            .sort({ lastActiveAt: -1, lastVisitedAt: -1 })
+            .limit(35)
+            .select("visitorId device deviceName browser os isRegistered userName userEmail userPhone userRole totalListenSeconds lastSongPlayed visitsCount lastPath lastActiveAt lastVisitedAt");
+
+        const recentVisitors = rawRecentVisitors.map(v => {
+            const lastActiveTime = new Date(v.lastActiveAt || v.lastVisitedAt || v.updatedAt).getTime();
+            const isLiveNow = (Date.now() - lastActiveTime) <= (2 * 60 * 1000);
+            const listenMins = Math.round((v.totalListenSeconds || 0) / 60);
+            return {
+                ...v.toObject(),
+                isLiveNow,
+                listenMinutes: listenMins
+            };
+        });
 
         // All uploaded tracks with artist details for moderation
         const allTracks = await musicModel.find()
@@ -104,15 +232,18 @@ async function getAdminStats(req, res) {
                 blockedCount: totalBlocked,
                 totalTracks,
                 totalFeedback,
-                // Visitor Analytics
+                // Visitor & Real-time Live Analytics
                 uniqueVisitors,
                 totalVisits: totalVisitsCount,
                 guestVisitors,
                 registeredVisitors,
-                conversionRate: `${conversionRate}%`
+                conversionRate: `${conversionRate}%`,
+                liveActiveUsers: Math.max(1, liveActiveVisitorsCount),
+                totalStreamingMinutes
             },
             allUsers,
             topListeners,
+            topStreamers,
             recentFeedbacks,
             recentVisitors,
             allTracks
@@ -330,6 +461,7 @@ async function updateFeedbackStatus(req, res) {
 
 module.exports = {
     recordVisitorVisit,
+    recordListenHeartbeat,
     getAdminStats,
     toggleBlockUser,
     toggleVerifyUser,

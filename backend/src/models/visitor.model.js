@@ -11,6 +11,10 @@ const visitorSchema = new mongoose.Schema({
         type: String,
         default: 'Desktop'
     },
+    deviceName: {
+        type: String,
+        default: 'Desktop PC'
+    },
     browser: {
         type: String,
         default: 'Browser'
@@ -32,13 +36,29 @@ const visitorSchema = new mongoose.Schema({
         ref: 'user',
         default: null
     },
+    userName: {
+        type: String,
+        default: ''
+    },
     userEmail: {
+        type: String,
+        default: ''
+    },
+    userPhone: {
         type: String,
         default: ''
     },
     userRole: {
         type: String,
         default: ''
+    },
+    totalListenSeconds: {
+        type: Number,
+        default: 0
+    },
+    lastSongPlayed: {
+        title: { type: String, default: '' },
+        artist: { type: String, default: '' }
     },
     visitsCount: {
         type: Number,
@@ -47,6 +67,10 @@ const visitorSchema = new mongoose.Schema({
     lastPath: {
         type: String,
         default: '/'
+    },
+    lastActiveAt: {
+        type: Date,
+        default: Date.now
     },
     lastVisitedAt: {
         type: Date,

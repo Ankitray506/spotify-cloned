@@ -2,10 +2,14 @@ import React, { createContext, useContext, useState, useRef, useEffect, useCallb
 import axiosClient from '../api/axiosClient';
 import { getCachedAudioUrl, isAudioCached } from '../services/audioCache';
 import { recordSongInteraction } from '../services/mlRecommender';
+import { useAuth } from './AuthContext';
+import { sendStreamingHeartbeat } from '../utils/deviceTracker';
 
 const MusicContext = createContext(null);
 
 export function MusicProvider({ children }) {
+  const auth = useAuth();
+  const user = auth?.user;
   const audioRef = useRef(new Audio());
   const [currentSong, setCurrentSong] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -215,6 +219,21 @@ export function MusicProvider({ children }) {
     }
     return () => clearInterval(timer);
   }, [currentSong, duration]);
+
+  // Continuous Streaming Heartbeat & Keep-Alive Alarm (Tracks listening minutes & wakes Render server)
+  useEffect(() => {
+    let interval = null;
+    if (isPlaying && currentSong) {
+      sendStreamingHeartbeat({ user, currentSong, secondsStreamed: 5 });
+
+      interval = setInterval(() => {
+        sendStreamingHeartbeat({ user, currentSong, secondsStreamed: 20 });
+      }, 20000); // Heartbeat every 20s during streaming
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isPlaying, currentSong, user]);
 
   // Audio element event listeners
   useEffect(() => {
