@@ -113,6 +113,12 @@ export default function LoginPage() {
     setSuccessMessage('');
 
     if (isRegisterMode) {
+      const cleanDigits = registerPhone.replace(/\D/g, '');
+      if (!cleanDigits || cleanDigits.length < 10) {
+        setError("Please enter a valid 10-digit mobile number");
+        return;
+      }
+
       if (!registerEmail || !password) {
         setError("Email and password are required");
         return;
@@ -146,7 +152,12 @@ export default function LoginPage() {
         setOtpEmail(registerEmail.trim());
         setShowOtpScreen(true);
         setResendCooldown(45);
-        setSuccessMessage("Verification code sent to your email! Please enter the 6-digit code below.");
+        if (res?.simulatedOtp) {
+          setOtpCode(res.simulatedOtp);
+          setSuccessMessage(`Verification code generated: ${res.simulatedOtp}`);
+        } else {
+          setSuccessMessage("Verification code sent to your email! Please enter the 6-digit code below.");
+        }
       } catch (err) {
         console.error("Register Error:", err);
         setError(err.response?.data?.message || "Registration failed. Please check your details.");
@@ -477,19 +488,21 @@ export default function LoginPage() {
                 {/* REGISTER MODE FIELDS (Role already picked at top, Mobile + Email + Password) */}
                 {isRegisterMode ? (
                   <>
-                    {/* Mobile Number */}
+                    {/* Mobile Number (Compulsory) */}
                     <div>
                       <label className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-1.5">
                         <Phone className="w-3.5 h-3.5 text-slate-400" />
                         <span>Mobile Number</span>
-                        <span className="text-[10px] text-slate-500 font-normal">(Optional)</span>
+                        <span className="text-emerald-400 text-xs font-bold">* (Compulsory)</span>
                       </label>
                       <input
                         type="tel"
-                        placeholder="+91 9876543210"
+                        required
+                        maxLength={10}
+                        placeholder="Enter 10-digit mobile number"
                         value={registerPhone}
-                        onChange={(e) => setRegisterPhone(e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-xl glass-input text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                        onChange={(e) => setRegisterPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                        className="w-full px-4 py-2.5 rounded-xl glass-input text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 font-mono tracking-wider"
                       />
                     </div>
 

@@ -54,15 +54,21 @@ async function registerUser(req, res) {
     try {
         const { phone = "", email, password, role = "user", username } = req.body;
 
-        // Check required fields (Email & Password are required; phone is requested)
-        if (!email || !password) {
+        const cleanEmail = (email || "").trim().toLowerCase();
+        const cleanDigits = (phone || "").replace(/\D/g, '');
+
+        // Check required fields (Mobile, Email & Password are all compulsory!)
+        if (!cleanDigits || cleanDigits.length < 10) {
+            return res.status(400).json({
+                message: "Valid 10-digit mobile number is compulsory"
+            });
+        }
+
+        if (!cleanEmail || !password) {
             return res.status(400).json({
                 message: "Email and password are required"
             });
         }
-
-        const cleanEmail = email.trim().toLowerCase();
-        const cleanPhone = (phone || "").trim();
 
         // Strong password check
         const passwordError = validatePasswordStrength(password);
@@ -137,14 +143,15 @@ async function registerUser(req, res) {
         });
 
         // Send instant 6-digit OTP Email
-        await sendOtpEmail(cleanEmail, otpCode, 'registration');
+        const emailResult = await sendOtpEmail(cleanEmail, otpCode, 'registration');
 
         return res.status(201).json({
             message: "Account created! A 6-digit verification code has been sent to your email.",
             requiresOtp: true,
             email: cleanEmail,
             username: newUser.username,
-            role: newUser.role
+            role: newUser.role,
+            simulatedOtp: emailResult.simulated ? otpCode : undefined
         });
 
     } catch (error) {
