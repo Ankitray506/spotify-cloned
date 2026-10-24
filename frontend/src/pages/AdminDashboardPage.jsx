@@ -194,23 +194,23 @@ export default function AdminDashboardPage() {
   });
 
   return (
-    <div className="min-h-screen bg-[#060911] text-white flex flex-col pb-36">
+    <div className="min-h-screen bg-[#060911] text-white flex flex-col pb-56">
       <Navbar />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-8">
         
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono mb-2">
               <ShieldCheck className="w-3.5 h-3.5" />
               <span>AURA 3D CONTROL CENTER</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight font-['Space_Grotesk']">
+            <h1 className="text-3xl font-extrabold tracking-tight font-['Space_Grotesk']">
               Platform Master Console
             </h1>
-            <p className="text-xs text-slate-400">
-              Welcome back, <span className="text-emerald-400 font-mono">Ankit Ray</span> ({user?.email})
+            <p className="text-xs text-slate-400 mt-1">
+              Admin account: <span className="text-emerald-400 font-mono">{user?.email}</span>
             </p>
           </div>
 
@@ -224,71 +224,59 @@ export default function AdminDashboardPage() {
           </button>
         </div>
 
-        {/* ================= 4 HIGH-IMPACT METRIC CARDS ================= */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
+        {/* ================= 4 CLEAN HIGH-IMPACT METRIC CARDS ================= */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           
           {/* 1. Website Visitors & Traffic */}
-          <GlassCard glowColor="emerald" className="p-4 sm:p-5 border-emerald-500/30">
+          <GlassCard glowColor="emerald" className="p-5 border-emerald-500/30">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-mono text-emerald-400 uppercase tracking-wider">Site Traffic</span>
+              <span className="text-xs font-mono text-emerald-400 uppercase tracking-wider font-bold">Unique Visitors</span>
               <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400">
                 <Eye className="w-4 h-4" />
               </div>
             </div>
-            <div className="text-2xl sm:text-3xl font-black font-['Space_Grotesk'] text-white mb-1">
+            <div className="text-3xl font-black font-['Space_Grotesk'] text-white">
               {metrics.uniqueVisitors || 0}
             </div>
-            <p className="text-[11px] text-slate-400">
-              Total Visits: <strong className="text-slate-200">{metrics.totalVisits || 0}</strong>
-            </p>
           </GlassCard>
 
           {/* 2. Registered Users */}
-          <GlassCard glowColor="cyan" className="p-4 sm:p-5 border-cyan-500/30">
+          <GlassCard glowColor="cyan" className="p-5 border-cyan-500/30">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-mono text-cyan-400 uppercase tracking-wider">Accounts</span>
+              <span className="text-xs font-mono text-cyan-400 uppercase tracking-wider font-bold">Registered Users</span>
               <div className="w-8 h-8 rounded-lg bg-cyan-500/10 flex items-center justify-center text-cyan-400">
                 <Users className="w-4 h-4" />
               </div>
             </div>
-            <div className="text-2xl sm:text-3xl font-black font-['Space_Grotesk'] text-white mb-1">
+            <div className="text-3xl font-black font-['Space_Grotesk'] text-white">
               {metrics.totalUsers || 0}
             </div>
-            <p className="text-[11px] text-slate-400">
-              {metrics.listenersCount || 0} Listeners • {metrics.artistsCount || 0} Artists
-            </p>
           </GlassCard>
 
           {/* 3. Conversion Funnel Rate */}
-          <GlassCard glowColor="purple" className="p-4 sm:p-5 border-purple-500/30">
+          <GlassCard glowColor="purple" className="p-5 border-purple-500/30">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-mono text-purple-400 uppercase tracking-wider">Conversion</span>
+              <span className="text-xs font-mono text-purple-400 uppercase tracking-wider font-bold">Conversion Rate</span>
               <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-400">
                 <TrendingUp className="w-4 h-4" />
               </div>
             </div>
-            <div className="text-2xl sm:text-3xl font-black font-['Space_Grotesk'] text-purple-300 mb-1">
+            <div className="text-3xl font-black font-['Space_Grotesk'] text-purple-300">
               {metrics.conversionRate || "0.0%"}
             </div>
-            <p className="text-[11px] text-slate-400">
-              Visitor-to-registered user sign up ratio
-            </p>
           </GlassCard>
 
           {/* 4. Catalog Uploads */}
-          <GlassCard glowColor="amber" className="p-4 sm:p-5 border-amber-500/30">
+          <GlassCard glowColor="amber" className="p-5 border-amber-500/30">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-mono text-amber-400 uppercase tracking-wider">Songs Library</span>
+              <span className="text-xs font-mono text-amber-400 uppercase tracking-wider font-bold">Artist Tracks</span>
               <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400">
                 <Disc3 className="w-4 h-4" />
               </div>
             </div>
-            <div className="text-2xl sm:text-3xl font-black font-['Space_Grotesk'] text-white mb-1">
+            <div className="text-3xl font-black font-['Space_Grotesk'] text-white">
               {metrics.totalTracks || 0}
             </div>
-            <p className="text-[11px] text-slate-400">
-              Original uploaded tracks in database
-            </p>
           </GlassCard>
 
         </div>
@@ -304,7 +292,7 @@ export default function AdminDashboardPage() {
             }`}
           >
             <Activity className="w-4 h-4" />
-            <span>Traffic & Visitor Logs ({stats?.recentVisitors?.length || 0})</span>
+            <span>Traffic & Visitors ({stats?.recentVisitors?.length || 0})</span>
           </button>
 
           <button
@@ -316,7 +304,7 @@ export default function AdminDashboardPage() {
             }`}
           >
             <Users className="w-4 h-4" />
-            <span>Users & OTP Verification ({stats?.allUsers?.length || 0})</span>
+            <span>User Directory ({stats?.allUsers?.length || 0})</span>
           </button>
 
           <button
@@ -340,7 +328,7 @@ export default function AdminDashboardPage() {
             }`}
           >
             <MessageSquare className="w-4 h-4" />
-            <span>User Feedback ({stats?.recentFeedbacks?.length || 0})</span>
+            <span>Support Tickets ({stats?.recentFeedbacks?.length || 0})</span>
           </button>
         </div>
 
@@ -349,37 +337,31 @@ export default function AdminDashboardPage() {
           <div className="space-y-6">
             {/* Breakdown Funnel Box */}
             <div className="p-5 rounded-2xl glass-card border border-white/10 bg-slate-950/60">
-              <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
+              <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
                 <Globe className="w-4 h-4 text-emerald-400" />
                 <span>Audience Conversion Funnel</span>
               </h3>
-              <p className="text-xs text-slate-400 mb-4">
-                Comparing anonymous visitors (unregistered guests) vs active registered accounts.
-              </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/5">
-                  <span className="text-[11px] font-mono text-slate-400 uppercase">Guest / Anonymous</span>
-                  <div className="text-xl font-bold text-slate-200 mt-1">
+                <div className="p-4 rounded-xl bg-white/[0.03] border border-white/5">
+                  <span className="text-[11px] font-mono text-slate-400 uppercase font-semibold">Guest Visitors</span>
+                  <div className="text-2xl font-bold text-slate-200 mt-1">
                     {metrics.guestVisitors || 0}
                   </div>
-                  <span className="text-[10px] text-slate-500">Browsing without sign in</span>
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/5">
-                  <span className="text-[11px] font-mono text-emerald-400 uppercase">Registered Users</span>
-                  <div className="text-xl font-bold text-emerald-300 mt-1">
+                <div className="p-4 rounded-xl bg-white/[0.03] border border-white/5">
+                  <span className="text-[11px] font-mono text-emerald-400 uppercase font-semibold">Registered Users</span>
+                  <div className="text-2xl font-bold text-emerald-300 mt-1">
                     {metrics.totalUsers || 0}
                   </div>
-                  <span className="text-[10px] text-slate-500">Verified & active accounts</span>
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
-                  <span className="text-[11px] font-mono text-emerald-400 uppercase">Conversion Rate</span>
-                  <div className="text-xl font-bold text-emerald-400 mt-1">
+                <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+                  <span className="text-[11px] font-mono text-emerald-400 uppercase font-semibold">Conversion</span>
+                  <div className="text-2xl font-bold text-emerald-400 mt-1">
                     {metrics.conversionRate || "0.0%"}
                   </div>
-                  <span className="text-[10px] text-emerald-300/70">Visitors who registered</span>
                 </div>
               </div>
             </div>
@@ -387,12 +369,9 @@ export default function AdminDashboardPage() {
             {/* Live Recent Visitor Log Table */}
             <div className="rounded-2xl glass-card border border-white/10 overflow-hidden bg-slate-950/80">
               <div className="p-4 border-b border-white/10 flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-bold text-white">Recent Website Visitors (Real-Time Feed)</h3>
-                  <p className="text-xs text-slate-400">Tracks anonymous and logged-in users visiting pages on AURA 3D.</p>
-                </div>
+                <h3 className="text-sm font-bold text-white">Live Visitor Stream</h3>
                 <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/30">
-                  Live Feed
+                  Real-Time
                 </span>
               </div>
 
@@ -733,8 +712,7 @@ export default function AdminDashboardPage() {
           <div className="space-y-4">
             <div className="rounded-2xl glass-card border border-white/10 overflow-hidden bg-slate-950/80">
               <div className="p-4 border-b border-white/10">
-                <h3 className="text-sm font-bold text-white">Platform Feedback & Account Recovery Requests</h3>
-                <p className="text-xs text-slate-400">Direct user messages submitted via the in-app support modal.</p>
+                <h3 className="text-sm font-bold text-white">Support & Feedback Tickets</h3>
               </div>
 
               <div className="divide-y divide-white/5">

@@ -15,6 +15,21 @@ body {
   overflow-x: hidden;
 }
 
+/* Complete Netlify badge / drawer obliterator */
+[class*="netlify"],
+[id*="netlify"],
+[data-netlify-drawer],
+netlify-drawer-widget,
+.netlify-drawer,
+iframe[src*="netlify.com"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
 /* Custom 3D Utilities */
 .perspective-1000 {
   perspective: 1000px;

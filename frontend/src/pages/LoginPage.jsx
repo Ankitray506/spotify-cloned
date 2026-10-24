@@ -152,12 +152,7 @@ export default function LoginPage() {
         setOtpEmail(registerEmail.trim());
         setShowOtpScreen(true);
         setResendCooldown(45);
-        if (res?.simulatedOtp) {
-          setOtpCode(res.simulatedOtp);
-          setSuccessMessage(`Verification code generated: ${res.simulatedOtp}`);
-        } else {
-          setSuccessMessage("Verification code sent to your email! Please enter the 6-digit code below.");
-        }
+        setSuccessMessage("A verification code has been sent to your email.");
       } catch (err) {
         console.error("Register Error:", err);
         setError(err.response?.data?.message || "Registration failed. Please check your details.");
@@ -485,21 +480,20 @@ export default function LoginPage() {
               {/* Form */}
               <form onSubmit={handleSubmit} className="space-y-4">
                 
-                {/* REGISTER MODE FIELDS (Role already picked at top, Mobile + Email + Password) */}
+                {/* REGISTER MODE FIELDS */}
                 {isRegisterMode ? (
                   <>
-                    {/* Mobile Number (Compulsory) */}
+                    {/* Mobile Number */}
                     <div>
                       <label className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-1.5">
                         <Phone className="w-3.5 h-3.5 text-slate-400" />
                         <span>Mobile Number</span>
-                        <span className="text-emerald-400 text-xs font-bold">* (Compulsory)</span>
                       </label>
                       <input
                         type="tel"
                         required
                         maxLength={10}
-                        placeholder="Enter 10-digit mobile number"
+                        placeholder="10-digit mobile number"
                         value={registerPhone}
                         onChange={(e) => setRegisterPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
                         className="w-full px-4 py-2.5 rounded-xl glass-input text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 font-mono tracking-wider"
@@ -511,32 +505,28 @@ export default function LoginPage() {
                       <label className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-1.5">
                         <Mail className="w-3.5 h-3.5 text-slate-400" />
                         <span>Email Address</span>
-                        <span className="text-emerald-400 text-xs">*</span>
                       </label>
                       <input
                         type="email"
                         required
-                        placeholder="yourname@gmail.com"
+                        placeholder="name@example.com"
                         value={registerEmail}
                         onChange={(e) => setRegisterEmail(e.target.value)}
                         className="w-full px-4 py-2.5 rounded-xl glass-input text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                       />
-                      <p className="text-[10px] text-slate-400 mt-1">
-                        We will send a 6-digit OTP code to this email to verify.
-                      </p>
                     </div>
                   </>
                 ) : (
-                  /* SIGN IN MODE FIELD (Accepts Email, Mobile, or Username) */
+                  /* SIGN IN MODE FIELD */
                   <div>
                     <label className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-1.5">
                       <User className="w-3.5 h-3.5 text-slate-400" />
-                      <span>Email, Mobile, or Username</span>
+                      <span>Account Identifier</span>
                     </label>
                     <input
                       type="text"
                       required
-                      placeholder="Enter Email, Phone or Username"
+                      placeholder="Email, Mobile, or Username"
                       value={loginIdentifier}
                       onChange={(e) => setLoginIdentifier(e.target.value)}
                       className="w-full px-4 py-2.5 rounded-xl glass-input text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
