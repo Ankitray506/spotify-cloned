@@ -55,10 +55,10 @@ async function registerUser(req, res) {
         const { phone = "", email, password, role = "user", username } = req.body;
 
         const cleanEmail = (email || "").trim().toLowerCase();
-        const cleanDigits = (phone || "").replace(/\D/g, '');
+        const cleanPhone = (phone || "").trim().replace(/\D/g, '');
 
         // Check required fields (Mobile, Email & Password are all compulsory!)
-        if (!cleanDigits || cleanDigits.length < 10) {
+        if (!cleanPhone || cleanPhone.length < 10) {
             return res.status(400).json({
                 message: "Valid 10-digit mobile number is compulsory"
             });
