@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axiosClient from '../api/axiosClient';
@@ -7,41 +7,62 @@ import FloatingParticles3D from '../components/3d/FloatingParticles3D';
 import GlassCard from '../components/common/GlassCard';
 import { 
   Headphones, Sparkles, User, Lock, Mail, Disc3, ArrowRight, 
-  AlertCircle, CheckCircle, Eye, EyeOff, ShieldCheck, Check, X, KeyRound 
+  AlertCircle, CheckCircle, Eye, EyeOff, ShieldCheck, Check, X, KeyRound, Phone, Clock
 } from 'lucide-react';
 
 export default function LoginPage() {
-  const { login, register, isAuthenticated } = useAuth();
+  const { login, register, verifyOtp, resendOtp, forgotPasswordRequest, resetPasswordWithOtp, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [selectedRole, setSelectedRole] = useState('user'); // 'user' | 'artist'
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
+
+  // Register / Login form state
+  const [loginIdentifier, setLoginIdentifier] = useState(''); // Email, Phone, or Username
+  const [registerPhone, setRegisterPhone] = useState('');
+  const [registerEmail, setRegisterEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
-  // Forgot password modal states
+  // Email OTP Verification Screen State (After Register)
+  const [showOtpScreen, setShowOtpScreen] = useState(false);
+  const [otpEmail, setOtpEmail] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpError, setOtpError] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  // Forgot Password Modal State
   const [showForgotModal, setShowForgotModal] = useState(false);
-  const [forgotUsername, setForgotUsername] = useState('');
+  const [forgotStep, setForgotStep] = useState(1); // 1 = Enter Email, 2 = Enter OTP & New Password
   const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotOtp, setForgotOtp] = useState('');
   const [forgotNewPass, setForgotNewPass] = useState('');
   const [showForgotNewPass, setShowForgotNewPass] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotError, setForgotError] = useState('');
   const [forgotSuccess, setForgotSuccess] = useState('');
 
-  // If already authenticated, redirect to home or studio
-  React.useEffect(() => {
+  // If already authenticated, redirect
+  useEffect(() => {
     if (isAuthenticated) {
       navigate(selectedRole === 'artist' ? '/artist/studio' : '/');
     }
   }, [isAuthenticated, navigate, selectedRole]);
 
-  // Real-time password strength check
+  // Resend OTP Cooldown timer
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const interval = setInterval(() => {
+      setResendCooldown((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [resendCooldown]);
+
+  // Password strength checker
   const evaluatePasswordStrength = (pass) => {
     if (!pass) return { score: 0, label: '', color: '', meetsCriteria: false, criteria: {} };
 
@@ -85,14 +106,15 @@ export default function LoginPage() {
   const passwordStrength = evaluatePasswordStrength(password);
   const forgotStrength = evaluatePasswordStrength(forgotNewPass);
 
+  // ================= HANDLE LOGIN & REGISTER =================
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccessMessage('');
 
     if (isRegisterMode) {
-      if (!username || !email || !password) {
-        setError("All fields are required");
+      if (!registerEmail || !password) {
+        setError("Email and password are required");
         return;
       }
 
@@ -110,76 +132,138 @@ export default function LoginPage() {
         setError("Please use a stronger password with a mix of uppercase, lowercase, numbers, and symbols");
         return;
       }
+
+      setLoading(true);
+      try {
+        const res = await register({
+          phone: registerPhone.trim(),
+          email: registerEmail.trim(),
+          password,
+          role: selectedRole
+        });
+
+        // Registration triggers email OTP verification screen
+        setOtpEmail(registerEmail.trim());
+        setShowOtpScreen(true);
+        setResendCooldown(45);
+        setSuccessMessage("Verification code sent to your email! Please enter the 6-digit code below.");
+      } catch (err) {
+        console.error("Register Error:", err);
+        setError(err.response?.data?.message || "Registration failed. Please check your details.");
+      } finally {
+        setLoading(false);
+      }
     } else {
-      const identifier = username || email;
-      if (!identifier || !password) {
-        setError("Please enter your username/email and password");
+      // Login mode
+      if (!loginIdentifier || !password) {
+        setError("Please enter your Email, Phone, or Username and password");
         return;
       }
-    }
 
-    setLoading(true);
-
-    try {
-      if (isRegisterMode) {
-        const res = await register(username, email, password, selectedRole);
-        if (res?.requiresLogin) {
-          setIsRegisterMode(false);
-          setPassword('');
-          setSuccessMessage(`Account created successfully! Welcome ${res.user?.username}. Please log in with your credentials to enter AURA 3D.`);
-          setLoading(false);
-          return;
-        }
-      } else {
-        const identifier = username || email;
-        await login(identifier, password);
+      setLoading(true);
+      try {
+        await login(loginIdentifier.trim(), password);
         navigate(selectedRole === 'artist' ? '/artist/studio' : '/');
+      } catch (err) {
+        console.error("Login Error:", err);
+        setError(err.response?.data?.message || "Invalid credentials. Please verify your details.");
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      console.error("Auth error:", err);
-      setError(err.response?.data?.message || "Authentication failed. Please check credentials.");
-    } finally {
-      setLoading(false);
     }
   };
 
-  const handleForgotPassword = async (e) => {
+  // ================= VERIFY REGISTRATION OTP =================
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    setOtpError('');
+    if (!otpCode || otpCode.trim().length < 6) {
+      setOtpError("Please enter the complete 6-digit verification code");
+      return;
+    }
+
+    setOtpLoading(true);
+    try {
+      await verifyOtp(otpEmail, otpCode.trim());
+      navigate(selectedRole === 'artist' ? '/artist/studio' : '/');
+    } catch (err) {
+      console.error("OTP Verify Error:", err);
+      setOtpError(err.response?.data?.message || "Invalid or expired OTP code.");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  // ================= RESEND REGISTRATION OTP =================
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0) return;
+    setOtpError('');
+    try {
+      await resendOtp(otpEmail);
+      setResendCooldown(45);
+      alert("New verification code sent to your email!");
+    } catch (err) {
+      setOtpError(err.response?.data?.message || "Failed to resend OTP");
+    }
+  };
+
+  // ================= FORGOT PASSWORD STEP 1: REQUEST OTP =================
+  const handleForgotRequestOtp = async (e) => {
     e.preventDefault();
     setForgotError('');
     setForgotSuccess('');
 
-    if (!forgotUsername || !forgotEmail || !forgotNewPass) {
-      setForgotError("Please fill in all fields");
-      return;
-    }
-
-    if (!forgotStrength.criteria.length) {
-      setForgotError("New password must be at least 8 characters");
-      return;
-    }
-
-    if (!forgotStrength.criteria.noRepeat) {
-      setForgotError("Avoid repeated numbers like 111111 or 12345678");
+    if (!forgotEmail || !forgotEmail.trim()) {
+      setForgotError("Please enter your registered email address");
       return;
     }
 
     setForgotLoading(true);
     try {
-      const res = await axiosClient.post('/auth/forgot-password', {
-        username: forgotUsername.trim(),
-        email: forgotEmail.trim(),
-        newPassword: forgotNewPass
-      });
+      const res = await forgotPasswordRequest(forgotEmail.trim());
+      setForgotSuccess(res.message || "Reset code sent to your email!");
+      setForgotStep(2);
+    } catch (err) {
+      setForgotError(err.response?.data?.message || "Failed to find account with that email");
+    } finally {
+      setForgotLoading(false);
+    }
+  };
 
-      setForgotSuccess(res.data.message || "Password updated successfully!");
+  // ================= FORGOT PASSWORD STEP 2: VERIFY & RESET =================
+  const handleForgotResetPassword = async (e) => {
+    e.preventDefault();
+    setForgotError('');
+    setForgotSuccess('');
+
+    if (!forgotOtp || forgotOtp.trim().length < 6) {
+      setForgotError("Please enter the 6-digit OTP code");
+      return;
+    }
+
+    if (!forgotNewPass || forgotNewPass.length < 8) {
+      setForgotError("New password must be at least 8 characters");
+      return;
+    }
+
+    if (!forgotStrength.meetsCriteria) {
+      setForgotError("Password must include uppercase, lowercase, numbers, and symbols");
+      return;
+    }
+
+    setForgotLoading(true);
+    try {
+      const res = await resetPasswordWithOtp(forgotEmail.trim(), forgotOtp.trim(), forgotNewPass);
+      setForgotSuccess(res.message || "Password successfully changed!");
       setTimeout(() => {
         setShowForgotModal(false);
-        setUsername(forgotUsername);
+        setForgotStep(1);
+        setLoginIdentifier(forgotEmail);
         setPassword('');
         setSuccessMessage("Password reset successful! Please sign in with your new password.");
       }, 2000);
     } catch (err) {
-      setForgotError(err.response?.data?.message || "Password reset failed. Please check your username and email.");
+      setForgotError(err.response?.data?.message || "Failed to reset password. Check OTP code.");
     } finally {
       setForgotLoading(false);
     }
@@ -188,7 +272,7 @@ export default function LoginPage() {
   const isArtist = selectedRole === 'artist';
 
   return (
-    <div className="relative min-h-screen w-full bg-[#05070e] text-white flex items-center justify-center p-4 overflow-hidden select-none">
+    <div className="relative min-h-screen w-full bg-[#05070e] text-white flex items-center justify-center p-3 sm:p-4 overflow-hidden select-none">
       
       {/* 3D Interactive Audio Sphere Background */}
       <div className="absolute inset-0 z-0 opacity-70">
@@ -203,12 +287,12 @@ export default function LoginPage() {
         isArtist ? 'bg-purple-600/15' : 'bg-emerald-500/15'
       }`} />
 
-      {/* Main 3D Card Container */}
-      <div className="relative z-10 w-full max-w-md my-8">
+      {/* Main Container */}
+      <div className="relative z-10 w-full max-w-md my-6 sm:my-8">
         
         {/* Brand Header */}
-        <div className="flex flex-col items-center text-center mb-6">
-          <Link to="/" className="flex items-center gap-3 mb-3 group">
+        <div className="flex flex-col items-center text-center mb-5">
+          <Link to="/" className="flex items-center gap-3 mb-2.5 group">
             <div className={`w-12 h-12 rounded-2xl p-[1px] shadow-2xl transition-all duration-500 group-hover:scale-110 ${
               isArtist
                 ? 'bg-gradient-to-tr from-purple-500 via-pink-500 to-cyan-400 shadow-purple-500/30'
@@ -236,346 +320,410 @@ export default function LoginPage() {
         <GlassCard
           glowColor={isArtist ? "purple" : "emerald"}
           tiltDegree={8}
-          className="p-6 sm:p-8 backdrop-blur-2xl border border-white/15 bg-slate-950/80 shadow-2xl"
+          className="p-5 sm:p-8 backdrop-blur-2xl border border-white/15 bg-slate-950/85 shadow-2xl"
         >
-          
-          {/* Role Switcher Pill */}
-          <div className="mb-6 p-1 rounded-2xl bg-slate-900/90 border border-white/10 grid grid-cols-2 gap-1">
-            <button
-              type="button"
-              onClick={() => setSelectedRole('user')}
-              className={`flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold tracking-wide transition-all ${
-                !isArtist
-                  ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/30 font-bold'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Headphones className="w-3.5 h-3.5" />
-              <span>Listener</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setSelectedRole('artist')}
-              className={`flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold tracking-wide transition-all ${
-                isArtist
-                  ? 'bg-gradient-to-r from-purple-600 to-cyan-600 text-white shadow-lg shadow-purple-500/30 font-bold'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Artist Creator</span>
-            </button>
-          </div>
-
-          {/* Mode Tabs (Sign In / Register) */}
-          <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-6">
-            <h2 className="text-base font-bold text-white tracking-wide">
-              {isRegisterMode ? "Create 3D Account" : "Welcome Back"}
-            </h2>
-            <button
-              type="button"
-              onClick={() => {
-                setIsRegisterMode(!isRegisterMode);
-                setError('');
-                setPassword('');
-              }}
-              className={`text-xs font-medium underline-offset-4 hover:underline ${
-                isArtist ? 'text-cyan-400' : 'text-emerald-400'
-              }`}
-            >
-              {isRegisterMode ? "Already have account? Sign in" : "New user? Create account"}
-            </button>
-          </div>
-
-          {/* Success Message */}
-          {successMessage && (
-            <div className="mb-4 p-3.5 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center gap-2.5 text-emerald-300 text-xs">
-              <CheckCircle className="w-5 h-5 shrink-0 text-emerald-400" />
-              <span>{successMessage}</span>
-            </div>
-          )}
-
-          {/* Error Message */}
-          {error && (
-            <div className="mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center gap-2.5 text-rose-300 text-xs">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            
-            {/* Username */}
+          {/* ================= VIEW 1: EMAIL OTP VERIFICATION SCREEN ================= */}
+          {showOtpScreen ? (
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5 text-slate-400" />
-                <span>Username {isRegisterMode ? '' : 'or Email'}</span>
-              </label>
-              <input
-                type="text"
-                required
-                placeholder={isRegisterMode ? "Choose a username" : "Enter username or email"}
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl glass-input text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-              />
-            </div>
-
-            {/* Email (only in Register mode) */}
-            {isRegisterMode && (
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-1.5">
-                  <Mail className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Email Address</span>
-                </label>
-                <input
-                  type="email"
-                  required
-                  placeholder="name@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl glass-input text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                />
-              </div>
-            )}
-
-            {/* Password with Eye Show/Hide Toggle */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
-                  <Lock className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Password</span>
-                </label>
-                {isRegisterMode && password && (
-                  <span className="text-[10px] font-mono tracking-wide text-slate-400">
-                    Strength: <span className={
-                      passwordStrength.score >= 4 ? 'text-emerald-400 font-bold' :
-                      passwordStrength.score >= 3 ? 'text-amber-400' : 'text-rose-400'
-                    }>{passwordStrength.label}</span>
-                  </span>
-                )}
-              </div>
-
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  required
-                  placeholder={isRegisterMode ? "Create strong password (min 8 chars)" : "Enter password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-4 pr-11 py-2.5 rounded-xl glass-input text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                />
+              <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-5">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                  <h2 className="text-base font-bold text-white tracking-wide">
+                    Verify Email Address
+                  </h2>
+                </div>
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-white transition-colors"
-                  title={showPassword ? "Hide password" : "Show password"}
+                  onClick={() => setShowOtpScreen(false)}
+                  className="text-xs text-slate-400 hover:text-white"
                 >
-                  {showPassword ? (
-                    <EyeOff className="w-4 h-4 text-cyan-400" />
-                  ) : (
-                    <Eye className="w-4 h-4" />
-                  )}
+                  Back to edit
                 </button>
               </div>
 
-              {/* Forgot Password Link in Sign In mode */}
-              {!isRegisterMode && (
-                <div className="flex justify-end pt-1.5">
+              <p className="text-xs text-slate-300 mb-5 leading-relaxed">
+                We sent a 6-digit verification code to <br />
+                <span className="font-mono text-emerald-400 font-bold">{otpEmail}</span>.
+              </p>
+
+              {otpError && (
+                <div className="mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center gap-2 text-rose-300 text-xs">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{otpError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleVerifyOtp} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-mono text-slate-400 mb-2 text-center">
+                    ENTER 6-DIGIT VERIFICATION CODE
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    autoFocus
+                    placeholder="••••••"
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
+                    className="w-full text-center tracking-[12px] font-mono text-2xl font-bold px-4 py-3 rounded-xl glass-input text-emerald-300 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={otpLoading || otpCode.length < 6}
+                  className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-black font-bold text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/30 flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 transition-all"
+                >
+                  {otpLoading ? (
+                    <Disc3 className="w-4 h-4 animate-spin text-black" />
+                  ) : (
+                    <>
+                      <span>Verify & Enter AURA 3D</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+
+                <div className="text-center pt-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setForgotUsername(username);
-                      setShowForgotModal(true);
-                    }}
-                    className="text-[11px] text-cyan-400 hover:text-cyan-300 hover:underline transition-colors flex items-center gap-1"
+                    disabled={resendCooldown > 0}
+                    onClick={handleResendOtp}
+                    className="text-xs text-slate-400 hover:text-emerald-400 disabled:opacity-50 transition-colors"
                   >
-                    <KeyRound className="w-3 h-3" />
-                    <span>Forgot Password?</span>
+                    {resendCooldown > 0 ? (
+                      <span className="flex items-center justify-center gap-1">
+                        <Clock className="w-3.5 h-3.5" /> Resend code in {resendCooldown}s
+                      </span>
+                    ) : (
+                      "Didn't receive email? Resend OTP"
+                    )}
                   </button>
                 </div>
-              )}
-
-              {/* Password Strength Meter in Register Mode */}
-              {isRegisterMode && password && (
-                <div className="mt-2.5 space-y-2 animate-fade-in">
-                  <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden flex gap-1">
-                    {[1, 2, 3, 4, 5].map((lvl) => (
-                      <div
-                        key={lvl}
-                        className={`h-full flex-1 transition-all duration-300 ${
-                          passwordStrength.score >= lvl ? passwordStrength.color : 'bg-slate-800'
-                        }`}
-                      />
-                    ))}
-                  </div>
-
-                  <div className="p-2.5 rounded-xl bg-slate-900/80 border border-white/5 text-[11px] space-y-1">
-                    <p className="font-semibold text-slate-300 flex items-center gap-1.5">
-                      <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
-                      <span>Strong Password Suggestions:</span>
-                    </p>
-                    <div className="grid grid-cols-2 gap-1 text-[10px] text-slate-400 pt-1">
-                      <span className={`flex items-center gap-1 ${passwordStrength.criteria.length ? 'text-emerald-400' : 'text-slate-400'}`}>
-                        {passwordStrength.criteria.length ? <Check className="w-3 h-3" /> : <X className="w-3 h-3 text-slate-500" />}
-                        8+ characters
-                      </span>
-                      <span className={`flex items-center gap-1 ${passwordStrength.criteria.upper && passwordStrength.criteria.lower ? 'text-emerald-400' : 'text-slate-400'}`}>
-                        {passwordStrength.criteria.upper && passwordStrength.criteria.lower ? <Check className="w-3 h-3" /> : <X className="w-3 h-3 text-slate-500" />}
-                        Upper & lower case
-                      </span>
-                      <span className={`flex items-center gap-1 ${passwordStrength.criteria.number ? 'text-emerald-400' : 'text-slate-400'}`}>
-                        {passwordStrength.criteria.number ? <Check className="w-3 h-3" /> : <X className="w-3 h-3 text-slate-500" />}
-                        Includes number (0-9)
-                      </span>
-                      <span className={`flex items-center gap-1 ${passwordStrength.criteria.special ? 'text-emerald-400' : 'text-slate-400'}`}>
-                        {passwordStrength.criteria.special ? <Check className="w-3 h-3" /> : <X className="w-3 h-3 text-slate-500" />}
-                        Special symbol (!@#$)
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
+              </form>
             </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={loading}
-              className={`w-full mt-2 py-3 rounded-xl font-bold text-sm tracking-wider uppercase shadow-xl transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 ${
-                isArtist
-                  ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 text-white shadow-purple-600/30'
-                  : 'bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 hover:from-emerald-400 hover:to-cyan-300 text-black shadow-emerald-500/30'
-              }`}
-            >
-              {loading ? (
-                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <>
-                  <span>{isRegisterMode ? "Create 3D Account" : "Access Spatial Player"}</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </form>
-
-        </GlassCard>
-
-        {/* Back Link */}
-        <div className="text-center mt-4">
-          <Link to="/" className="text-xs text-slate-400 hover:text-white transition-colors">
-            ← Return to Music Discovery
-          </Link>
-        </div>
-
-      </div>
-
-      {/* Forgot Password Reset Modal */}
-      {showForgotModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="relative w-full max-w-md animate-fade-in">
-            <GlassCard glowColor="cyan" className="p-6 sm:p-8 border border-cyan-500/30 bg-slate-950/95 shadow-2xl">
-              <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-5">
-                <div className="flex items-center gap-2.5">
-                  <KeyRound className="w-5 h-5 text-cyan-400" />
-                  <h3 className="text-base font-bold text-white">Reset Account Password</h3>
-                </div>
+          ) : (
+            /* ================= VIEW 2: NORMAL SIGN IN / REGISTER FORM ================= */
+            <div>
+              {/* Role Switcher Pill */}
+              <div className="mb-5 p-1 rounded-2xl bg-slate-900/90 border border-white/10 grid grid-cols-2 gap-1">
                 <button
-                  onClick={() => setShowForgotModal(false)}
-                  className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-white/5"
+                  type="button"
+                  onClick={() => setSelectedRole('user')}
+                  className={`flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold tracking-wide transition-all ${
+                    !isArtist
+                      ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/30 font-bold'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
                 >
-                  <X className="w-5 h-5" />
+                  <Headphones className="w-3.5 h-3.5" />
+                  <span>Listener</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedRole('artist')}
+                  className={`flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-semibold tracking-wide transition-all ${
+                    isArtist
+                      ? 'bg-gradient-to-r from-purple-600 to-cyan-600 text-white shadow-lg shadow-purple-500/30 font-bold'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Artist Creator</span>
                 </button>
               </div>
 
-              {forgotSuccess ? (
-                <div className="py-6 text-center">
-                  <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto mb-2 animate-bounce" />
-                  <h4 className="text-sm font-bold text-white mb-1">Password Updated!</h4>
-                  <p className="text-xs text-slate-300">{forgotSuccess}</p>
+              {/* Mode Tabs (Sign In / Register) */}
+              <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-5">
+                <h2 className="text-base font-bold text-white tracking-wide">
+                  {isRegisterMode ? "Create 3D Account" : "Welcome Back"}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsRegisterMode(!isRegisterMode);
+                    setError('');
+                    setPassword('');
+                    setSuccessMessage('');
+                  }}
+                  className={`text-xs font-medium underline-offset-4 hover:underline ${
+                    isArtist ? 'text-cyan-400' : 'text-emerald-400'
+                  }`}
+                >
+                  {isRegisterMode ? "Already have account? Sign in" : "New user? Create account"}
+                </button>
+              </div>
+
+              {/* Success Message */}
+              {successMessage && (
+                <div className="mb-4 p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center gap-2 text-emerald-300 text-xs">
+                  <CheckCircle className="w-4 h-4 shrink-0 text-emerald-400" />
+                  <span>{successMessage}</span>
                 </div>
-              ) : (
-                <form onSubmit={handleForgotPassword} className="space-y-3.5">
-                  <p className="text-xs text-slate-300 leading-relaxed">
-                    Enter your account username and registered email to verify ownership and set a new password.
-                  </p>
+              )}
 
-                  {forgotError && (
-                    <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
-                      <AlertCircle className="w-4 h-4 shrink-0" />
-                      <span>{forgotError}</span>
+              {/* Error Message */}
+              {error && (
+                <div className="mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center gap-2 text-rose-300 text-xs">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              {/* Form */}
+              <form onSubmit={handleSubmit} className="space-y-4">
+                
+                {/* REGISTER MODE FIELDS (Role already picked at top, Mobile + Email + Password) */}
+                {isRegisterMode ? (
+                  <>
+                    {/* Mobile Number */}
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-1.5">
+                        <Phone className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Mobile Number</span>
+                        <span className="text-[10px] text-slate-500 font-normal">(Optional)</span>
+                      </label>
+                      <input
+                        type="tel"
+                        placeholder="+91 9876543210"
+                        value={registerPhone}
+                        onChange={(e) => setRegisterPhone(e.target.value)}
+                        className="w-full px-4 py-2.5 rounded-xl glass-input text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                      />
                     </div>
-                  )}
 
+                    {/* Email Address */}
+                    <div>
+                      <label className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-1.5">
+                        <Mail className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Email Address</span>
+                        <span className="text-emerald-400 text-xs">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        placeholder="yourname@gmail.com"
+                        value={registerEmail}
+                        onChange={(e) => setRegisterEmail(e.target.value)}
+                        className="w-full px-4 py-2.5 rounded-xl glass-input text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                      />
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        We will send a 6-digit OTP code to this email to verify.
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  /* SIGN IN MODE FIELD (Accepts Email, Mobile, or Username) */
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">Account Username</label>
+                    <label className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-1.5">
+                      <User className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Email, Mobile, or Username</span>
+                    </label>
                     <input
                       type="text"
                       required
-                      placeholder="e.g. your_username"
-                      value={forgotUsername}
-                      onChange={(e) => setForgotUsername(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl glass-input text-xs text-white placeholder-slate-500"
+                      placeholder="Enter Email, Phone or Username"
+                      value={loginIdentifier}
+                      onChange={(e) => setLoginIdentifier(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl glass-input text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                     />
                   </div>
+                )}
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">Registered Email</label>
-                    <input
-                      type="email"
-                      required
-                      placeholder="e.g. you@example.com"
-                      value={forgotEmail}
-                      onChange={(e) => setForgotEmail(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl glass-input text-xs text-white placeholder-slate-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">New Strong Password</label>
-                    <div className="relative">
-                      <input
-                        type={showForgotNewPass ? "text" : "password"}
-                        required
-                        placeholder="Min 8 characters (mixed case + symbols)"
-                        value={forgotNewPass}
-                        onChange={(e) => setForgotNewPass(e.target.value)}
-                        className="w-full pl-3 pr-10 py-2 rounded-xl glass-input text-xs text-white placeholder-slate-500"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowForgotNewPass(!showForgotNewPass)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-white"
-                      >
-                        {showForgotNewPass ? <EyeOff className="w-3.5 h-3.5 text-cyan-400" /> : <Eye className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={forgotLoading}
-                    className="w-full py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold text-xs uppercase tracking-wider transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/25"
-                  >
-                    {forgotLoading ? (
-                      <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <>
-                        <KeyRound className="w-3.5 h-3.5" />
-                        <span>Verify & Set New Password</span>
-                      </>
+                {/* Password with Eye Show/Hide Toggle */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Password</span>
+                    </label>
+                    {isRegisterMode && password && (
+                      <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+                        passwordStrength.meetsCriteria ? 'text-emerald-400 bg-emerald-500/10' : 'text-rose-400 bg-rose-500/10'
+                      }`}>
+                        {passwordStrength.label}
+                      </span>
                     )}
-                  </button>
-
-                  <div className="pt-2 text-center">
-                    <p className="text-[11px] text-slate-400">
-                      Need administrator help? Email developer at <strong className="text-cyan-400">ankitrayh6475@gmail.com</strong>
-                    </p>
                   </div>
-                </form>
-              )}
-            </GlassCard>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      required
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full pl-4 pr-10 py-2.5 rounded-xl glass-input text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+
+                  {/* Password Strength Checklist (Only in Register mode) */}
+                  {isRegisterMode && password && (
+                    <div className="mt-3 p-3 rounded-xl bg-black/40 border border-white/5 space-y-1.5 text-[11px] font-mono">
+                      <div className="flex items-center gap-1.5">
+                        {passwordStrength.criteria.length ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <X className="w-3.5 h-3.5 text-slate-500" />}
+                        <span className={passwordStrength.criteria.length ? 'text-slate-200' : 'text-slate-500'}>At least 8 characters</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {passwordStrength.criteria.upper && passwordStrength.criteria.lower ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <X className="w-3.5 h-3.5 text-slate-500" />}
+                        <span className={passwordStrength.criteria.upper && passwordStrength.criteria.lower ? 'text-slate-200' : 'text-slate-500'}>Uppercase & lowercase letters</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {passwordStrength.criteria.number ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <X className="w-3.5 h-3.5 text-slate-500" />}
+                        <span className={passwordStrength.criteria.number ? 'text-slate-200' : 'text-slate-500'}>At least one number (0-9)</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Submit Button */}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className={`w-full py-3 rounded-xl font-bold text-xs uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-all mt-6 ${
+                    isArtist
+                      ? 'bg-gradient-to-r from-purple-600 via-pink-600 to-cyan-500 text-white shadow-purple-500/30 hover:brightness-110'
+                      : 'bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-black shadow-emerald-500/30'
+                  }`}
+                >
+                  {loading ? (
+                    <Disc3 className="w-4 h-4 animate-spin text-current" />
+                  ) : (
+                    <>
+                      <span>{isRegisterMode ? "Send OTP & Register" : "Sign In to AURA 3D"}</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+
+                {/* Forgot Password Link in Login Mode */}
+                {!isRegisterMode && (
+                  <div className="text-center pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowForgotModal(true);
+                        setForgotStep(1);
+                        setForgotError('');
+                        setForgotSuccess('');
+                      }}
+                      className="text-xs text-slate-400 hover:text-emerald-400 transition-colors"
+                    >
+                      Forgot your password? Reset via Email OTP
+                    </button>
+                  </div>
+                )}
+              </form>
+            </div>
+          )}
+        </GlassCard>
+      </div>
+
+      {/* ================= FORGOT PASSWORD OTP MODAL ================= */}
+      {showForgotModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="relative w-full max-w-sm rounded-2xl glass-card border border-white/15 bg-slate-950 p-6 shadow-2xl">
+            <button
+              onClick={() => setShowForgotModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-2 mb-3">
+              <KeyRound className="w-5 h-5 text-emerald-400" />
+              <h3 className="text-base font-bold text-white">Reset Password</h3>
+            </div>
+
+            {forgotSuccess && (
+              <div className="mb-4 p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs">
+                {forgotSuccess}
+              </div>
+            )}
+
+            {forgotError && (
+              <div className="mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs">
+                {forgotError}
+              </div>
+            )}
+
+            {forgotStep === 1 ? (
+              <form onSubmit={handleForgotRequestOtp} className="space-y-4">
+                <p className="text-xs text-slate-300">
+                  Enter your registered email address. We will send you a 6-digit OTP to reset your password.
+                </p>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Email Address</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="name@example.com"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl glass-input text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={forgotLoading}
+                  className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-all"
+                >
+                  {forgotLoading ? "Sending OTP..." : "Send Reset Code"}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleForgotResetPassword} className="space-y-4">
+                <p className="text-xs text-slate-300">
+                  Enter the 6-digit OTP code sent to <strong className="text-white">{forgotEmail}</strong> and your new password.
+                </p>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">6-Digit Code</label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    placeholder="••••••"
+                    value={forgotOtp}
+                    onChange={(e) => setForgotOtp(e.target.value.replace(/[^0-9]/g, ''))}
+                    className="w-full text-center tracking-[8px] font-mono font-bold text-lg px-4 py-2 rounded-xl glass-input text-emerald-300 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">New Strong Password</label>
+                  <div className="relative">
+                    <input
+                      type={showForgotNewPass ? "text" : "password"}
+                      required
+                      placeholder="••••••••"
+                      value={forgotNewPass}
+                      onChange={(e) => setForgotNewPass(e.target.value)}
+                      className="w-full pl-4 pr-10 py-2.5 rounded-xl glass-input text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotNewPass(!showForgotNewPass)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                    >
+                      {showForgotNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+                <button
+                  type="submit"
+                  disabled={forgotLoading}
+                  className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-all"
+                >
+                  {forgotLoading ? "Updating..." : "Update Password & Sign In"}
+                </button>
+              </form>
+            )}
           </div>
         </div>
       )}

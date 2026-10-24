@@ -2,23 +2,28 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axiosClient from '../api/axiosClient';
 import { useAuth } from '../context/AuthContext';
+import { useMusic } from '../context/MusicContext';
 import Navbar from '../components/common/Navbar';
 import GlassCard from '../components/common/GlassCard';
 import { 
   ShieldCheck, Users, Headphones, Sparkles, Disc3, MessageSquare, 
   RefreshCw, CheckCircle2, Clock, AlertTriangle, ArrowLeft, Trophy,
-  Ban, CheckCircle, Search, KeyRound, X, ShieldAlert, Trash2
+  Ban, CheckCircle, Search, KeyRound, X, ShieldAlert, Trash2, Eye,
+  TrendingUp, Activity, Smartphone, Monitor, Globe, Play, Pause, Phone
 } from 'lucide-react';
 
 export default function AdminDashboardPage() {
   const { user, isAuthenticated } = useAuth();
+  const { playSong, currentSong, isPlaying } = useMusic();
   const navigate = useNavigate();
 
+  const [activeTab, setActiveTab] = useState('analytics'); // 'analytics' | 'users' | 'tracks' | 'feedback'
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [userSearch, setUserSearch] = useState('');
+  const [trackSearch, setTrackSearch] = useState('');
 
   // Password reset modal state
   const [resetModalUser, setResetModalUser] = useState(null);
@@ -55,12 +60,12 @@ export default function AdminDashboardPage() {
     }
   }, [isAuthenticated, isAdmin, navigate]);
 
+  // Toggle user block status
   const handleToggleBlock = async (targetUser) => {
     const action = targetUser.isBlocked ? 'unblock' : 'block';
     if (!window.confirm(`Are you sure you want to ${action} ${targetUser.username}?`)) {
       return;
     }
-
     try {
       await axiosClient.put(`/admin/users/${targetUser._id}/block`);
       fetchStats();
@@ -69,11 +74,45 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const handleDeleteUser = async (targetUser) => {
-    if (!window.confirm(`⚠️ PERMANENT DELETION WARNING:\n\nAre you sure you want to permanently delete user "${targetUser.username}" (${targetUser.email})?\n\nThis will remove their account and all uploaded tracks from the database. This action CANNOT be undone.`)) {
+  // 1-Click User Verification Toggle Bypass
+  const handleToggleVerify = async (targetUser) => {
+    try {
+      await axiosClient.put(`/admin/users/${targetUser._id}/verify`);
+      fetchStats();
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to toggle verification");
+    }
+  };
+
+  // Change user role (Listener vs Artist)
+  const handleChangeRole = async (targetUser, newRole) => {
+    try {
+      await axiosClient.put(`/admin/users/${targetUser._id}/role`, { role: newRole });
+      fetchStats();
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to change user role");
+    }
+  };
+
+  // 1-Click Delete Artist Track
+  const handleDeleteTrack = async (track) => {
+    if (!window.confirm(`⚠️ REMOVE TRACK WARNING:\n\nAre you sure you want to permanently delete "${track.title}"?\n\nThis will remove it from AURA 3D streaming catalog immediately.`)) {
       return;
     }
+    try {
+      await axiosClient.delete(`/admin/tracks/${track._id}`);
+      fetchStats();
+      alert(`Track "${track.title}" deleted.`);
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to delete track");
+    }
+  };
 
+  // Delete User
+  const handleDeleteUser = async (targetUser) => {
+    if (!window.confirm(`⚠️ PERMANENT USER DELETION:\n\nAre you sure you want to delete "${targetUser.username}" (${targetUser.email}) and all their uploaded tracks?`)) {
+      return;
+    }
     try {
       await axiosClient.delete(`/admin/users/${targetUser._id}`);
       fetchStats();
@@ -82,6 +121,7 @@ export default function AdminDashboardPage() {
     }
   };
 
+  // Override Password
   const handleAdminResetPassword = async (e) => {
     e.preventDefault();
     if (!resetModalUser || !resetNewPass) return;
@@ -97,7 +137,7 @@ export default function AdminDashboardPage() {
         setResetModalUser(null);
         setResetNewPass('');
         setResetMsg('');
-      }, 2000);
+      }, 1500);
     } catch (err) {
       alert(err.response?.data?.message || "Failed to reset password");
     } finally {
@@ -105,6 +145,7 @@ export default function AdminDashboardPage() {
     }
   };
 
+  // Update feedback status
   const handleUpdateFeedbackStatus = async (id, status) => {
     try {
       await axiosClient.put(`/admin/feedback/${id}`, { status });
@@ -138,474 +179,654 @@ export default function AdminDashboardPage() {
     );
   }
 
+  const metrics = stats?.metrics || {};
+
   const filteredUsers = (stats?.allUsers || []).filter((u) => {
     if (!userSearch) return true;
     const q = userSearch.toLowerCase();
-    return u.username?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q);
+    return u.username?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q) || u.phone?.includes(q);
+  });
+
+  const filteredTracks = (stats?.allTracks || []).filter((t) => {
+    if (!trackSearch) return true;
+    const q = trackSearch.toLowerCase();
+    return t.title?.toLowerCase().includes(q) || t.artist?.username?.toLowerCase().includes(q);
   });
 
   return (
-    <div className="min-h-screen bg-[#060911] text-white flex flex-col pb-32">
+    <div className="min-h-screen bg-[#060911] text-white flex flex-col pb-36">
       <Navbar />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-6">
         
-        {/* Admin Header */}
-        <div className="relative rounded-3xl overflow-hidden glass-card border border-cyan-500/25 p-6 sm:p-8 mb-8 shadow-2xl bg-gradient-to-r from-cyan-950/40 via-slate-900/60 to-purple-950/40">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-cyan-400 to-emerald-400 p-[1px] shadow-xl shadow-cyan-500/30">
-                <div className="w-full h-full rounded-2xl bg-slate-950 flex items-center justify-center">
-                  <ShieldCheck className="w-7 h-7 text-cyan-400" />
-                </div>
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono mb-2">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>AURA 3D CONTROL CENTER</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight font-['Space_Grotesk']">
+              Platform Master Console
+            </h1>
+            <p className="text-xs text-slate-400">
+              Welcome back, <span className="text-emerald-400 font-mono">Ankit Ray</span> ({user?.email})
+            </p>
+          </div>
+
+          <button
+            onClick={fetchStats}
+            disabled={refreshing}
+            className="self-start sm:self-auto flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-mono text-slate-300 hover:text-white transition-colors"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-emerald-400' : ''}`} />
+            <span>Refresh Analytics</span>
+          </button>
+        </div>
+
+        {/* ================= 4 HIGH-IMPACT METRIC CARDS ================= */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
+          
+          {/* 1. Website Visitors & Traffic */}
+          <GlassCard glowColor="emerald" className="p-4 sm:p-5 border-emerald-500/30">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-mono text-emerald-400 uppercase tracking-wider">Site Traffic</span>
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+                <Eye className="w-4 h-4" />
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-2xl font-black tracking-wide text-white font-['Space_Grotesk']">
-                    AURA Admin Portal
-                  </h1>
-                  <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-500/40 text-[10px] font-mono text-cyan-300">
-                    Master Console
-                  </span>
+            </div>
+            <div className="text-2xl sm:text-3xl font-black font-['Space_Grotesk'] text-white mb-1">
+              {metrics.uniqueVisitors || 0}
+            </div>
+            <p className="text-[11px] text-slate-400">
+              Total Visits: <strong className="text-slate-200">{metrics.totalVisits || 0}</strong>
+            </p>
+          </GlassCard>
+
+          {/* 2. Registered Users */}
+          <GlassCard glowColor="cyan" className="p-4 sm:p-5 border-cyan-500/30">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-mono text-cyan-400 uppercase tracking-wider">Accounts</span>
+              <div className="w-8 h-8 rounded-lg bg-cyan-500/10 flex items-center justify-center text-cyan-400">
+                <Users className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="text-2xl sm:text-3xl font-black font-['Space_Grotesk'] text-white mb-1">
+              {metrics.totalUsers || 0}
+            </div>
+            <p className="text-[11px] text-slate-400">
+              {metrics.listenersCount || 0} Listeners • {metrics.artistsCount || 0} Artists
+            </p>
+          </GlassCard>
+
+          {/* 3. Conversion Funnel Rate */}
+          <GlassCard glowColor="purple" className="p-4 sm:p-5 border-purple-500/30">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-mono text-purple-400 uppercase tracking-wider">Conversion</span>
+              <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-400">
+                <TrendingUp className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="text-2xl sm:text-3xl font-black font-['Space_Grotesk'] text-purple-300 mb-1">
+              {metrics.conversionRate || "0.0%"}
+            </div>
+            <p className="text-[11px] text-slate-400">
+              Visitor-to-registered user sign up ratio
+            </p>
+          </GlassCard>
+
+          {/* 4. Catalog Uploads */}
+          <GlassCard glowColor="amber" className="p-4 sm:p-5 border-amber-500/30">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-mono text-amber-400 uppercase tracking-wider">Songs Library</span>
+              <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400">
+                <Disc3 className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="text-2xl sm:text-3xl font-black font-['Space_Grotesk'] text-white mb-1">
+              {metrics.totalTracks || 0}
+            </div>
+            <p className="text-[11px] text-slate-400">
+              Original uploaded tracks in database
+            </p>
+          </GlassCard>
+
+        </div>
+
+        {/* ================= NAVIGATION TABS ================= */}
+        <div className="flex items-center gap-2 border-b border-white/10 pb-3 mb-6 overflow-x-auto scrollbar-none">
+          <button
+            onClick={() => setActiveTab('analytics')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-mono font-bold tracking-wider uppercase transition-all shrink-0 ${
+              activeTab === 'analytics'
+                ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20'
+                : 'text-slate-400 hover:text-white bg-white/5'
+            }`}
+          >
+            <Activity className="w-4 h-4" />
+            <span>Traffic & Visitor Logs ({stats?.recentVisitors?.length || 0})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('users')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-mono font-bold tracking-wider uppercase transition-all shrink-0 ${
+              activeTab === 'users'
+                ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20'
+                : 'text-slate-400 hover:text-white bg-white/5'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            <span>Users & OTP Verification ({stats?.allUsers?.length || 0})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('tracks')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-mono font-bold tracking-wider uppercase transition-all shrink-0 ${
+              activeTab === 'tracks'
+                ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20'
+                : 'text-slate-400 hover:text-white bg-white/5'
+            }`}
+          >
+            <Disc3 className="w-4 h-4" />
+            <span>Tracks Moderation ({stats?.allTracks?.length || 0})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('feedback')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-mono font-bold tracking-wider uppercase transition-all shrink-0 ${
+              activeTab === 'feedback'
+                ? 'bg-emerald-500 text-black shadow-lg shadow-emerald-500/20'
+                : 'text-slate-400 hover:text-white bg-white/5'
+            }`}
+          >
+            <MessageSquare className="w-4 h-4" />
+            <span>User Feedback ({stats?.recentFeedbacks?.length || 0})</span>
+          </button>
+        </div>
+
+        {/* ================= TAB 1: VISITOR & TRAFFIC ANALYTICS ================= */}
+        {activeTab === 'analytics' && (
+          <div className="space-y-6">
+            {/* Breakdown Funnel Box */}
+            <div className="p-5 rounded-2xl glass-card border border-white/10 bg-slate-950/60">
+              <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
+                <Globe className="w-4 h-4 text-emerald-400" />
+                <span>Audience Conversion Funnel</span>
+              </h3>
+              <p className="text-xs text-slate-400 mb-4">
+                Comparing anonymous visitors (unregistered guests) vs active registered accounts.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/5">
+                  <span className="text-[11px] font-mono text-slate-400 uppercase">Guest / Anonymous</span>
+                  <div className="text-xl font-bold text-slate-200 mt-1">
+                    {metrics.guestVisitors || 0}
+                  </div>
+                  <span className="text-[10px] text-slate-500">Browsing without sign in</span>
                 </div>
-                <p className="text-xs text-slate-400">
-                  Real-time platform metrics, user moderation (block/unblock), password management, and bug reports for <span className="text-emerald-400">{user?.email}</span>
-                </p>
+
+                <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/5">
+                  <span className="text-[11px] font-mono text-emerald-400 uppercase">Registered Users</span>
+                  <div className="text-xl font-bold text-emerald-300 mt-1">
+                    {metrics.totalUsers || 0}
+                  </div>
+                  <span className="text-[10px] text-slate-500">Verified & active accounts</span>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+                  <span className="text-[11px] font-mono text-emerald-400 uppercase">Conversion Rate</span>
+                  <div className="text-xl font-bold text-emerald-400 mt-1">
+                    {metrics.conversionRate || "0.0%"}
+                  </div>
+                  <span className="text-[10px] text-emerald-300/70">Visitors who registered</span>
+                </div>
               </div>
             </div>
 
-            <button
-              onClick={fetchStats}
-              disabled={refreshing}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold text-slate-300 hover:text-white transition-all disabled:opacity-50"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-cyan-400' : ''}`} />
-              <span>{refreshing ? 'Refreshing...' : 'Refresh Stats'}</span>
-            </button>
-          </div>
-        </div>
+            {/* Live Recent Visitor Log Table */}
+            <div className="rounded-2xl glass-card border border-white/10 overflow-hidden bg-slate-950/80">
+              <div className="p-4 border-b border-white/10 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-white">Recent Website Visitors (Real-Time Feed)</h3>
+                  <p className="text-xs text-slate-400">Tracks anonymous and logged-in users visiting pages on AURA 3D.</p>
+                </div>
+                <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/30">
+                  Live Feed
+                </span>
+              </div>
 
-        {error && (
-          <div className="mb-6 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-white/5 text-slate-400 uppercase font-mono text-[10px]">
+                    <tr>
+                      <th className="px-4 py-3">Device / Browser</th>
+                      <th className="px-4 py-3">Visitor ID</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3">Page Path</th>
+                      <th className="px-4 py-3">Visits</th>
+                      <th className="px-4 py-3">Time</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5 font-mono">
+                    {(stats?.recentVisitors || []).length > 0 ? (
+                      stats.recentVisitors.map((v, i) => (
+                        <tr key={v._id || i} className="hover:bg-white/[0.02]">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              {v.device === 'Mobile' ? (
+                                <Smartphone className="w-4 h-4 text-cyan-400 shrink-0" />
+                              ) : (
+                                <Monitor className="w-4 h-4 text-emerald-400 shrink-0" />
+                              )}
+                              <span className="text-slate-200">{v.device} • {v.browser}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-slate-400 truncate max-w-[140px]">
+                            {v.visitorId}
+                          </td>
+                          <td className="px-4 py-3">
+                            {v.isRegistered ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
+                                Registered ({v.userRole || 'user'})
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 bg-white/5 border border-white/10 px-2 py-0.5 rounded-full">
+                                Guest Listener
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-slate-300">
+                            {v.lastPath || '/'}
+                          </td>
+                          <td className="px-4 py-3 text-slate-400">
+                            {v.visitsCount || 1}
+                          </td>
+                          <td className="px-4 py-3 text-slate-500">
+                            {new Date(v.lastVisitedAt || v.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-8 text-center text-slate-500 font-sans">
+                          No visitor logs recorded yet. Visit the homepage to initialize traffic tracking!
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
 
-        {/* 4 Stat Metric Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <GlassCard glowColor="cyan" className="p-5 border border-cyan-500/20">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs text-slate-400 font-medium">Total Registered</span>
-              <Users className="w-5 h-5 text-cyan-400" />
-            </div>
-            <div className="text-3xl font-black text-white font-['Space_Grotesk']">
-              {stats?.metrics?.totalUsers || 0}
-            </div>
-            <div className="text-[11px] text-slate-400 mt-1 flex items-center gap-2">
-              <span className="text-emerald-400 font-bold">{stats?.metrics?.listenersCount || 0} Listeners</span>
-              <span>•</span>
-              <span className="text-purple-400 font-bold">{stats?.metrics?.artistsCount || 0} Artists</span>
-            </div>
-          </GlassCard>
-
-          <GlassCard glowColor="purple" className="p-5 border border-purple-500/20">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs text-slate-400 font-medium">Suspended Accounts</span>
-              <Ban className="w-5 h-5 text-rose-400" />
-            </div>
-            <div className="text-3xl font-black text-rose-400 font-['Space_Grotesk']">
-              {stats?.metrics?.blockedCount || 0}
-            </div>
-            <div className="text-[11px] text-slate-400 mt-1">
-              Blocked by admin
-            </div>
-          </GlassCard>
-
-          <GlassCard glowColor="emerald" className="p-5 border border-emerald-500/20">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs text-slate-400 font-medium">Top Listener Total</span>
-              <Trophy className="w-5 h-5 text-emerald-400" />
-            </div>
-            <div className="text-3xl font-black text-white font-['Space_Grotesk']">
-              {stats?.topListeners?.[0]?.listenCount || 0}
-            </div>
-            <div className="text-[11px] text-slate-400 mt-1 truncate">
-              Leader: <span className="text-emerald-400 font-bold">{stats?.topListeners?.[0]?.username || 'N/A'}</span>
-            </div>
-          </GlassCard>
-
-          <GlassCard glowColor="cyan" className="p-5 border border-cyan-500/20">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs text-slate-400 font-medium">Feedback & Inquiries</span>
-              <MessageSquare className="w-5 h-5 text-cyan-400" />
-            </div>
-            <div className="text-3xl font-black text-white font-['Space_Grotesk']">
-              {stats?.metrics?.totalFeedback || 0}
-            </div>
-            <div className="text-[11px] text-slate-400 mt-1">
-              Direct reports from users
-            </div>
-          </GlassCard>
-        </div>
-
-        {/* User Management Section (Block / Unblock & Reset Password) */}
-        <GlassCard glowColor="cyan" className="p-6 border border-cyan-500/25 mb-8">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-white/10 mb-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <ShieldAlert className="w-5 h-5 text-cyan-400" />
-                <h3 className="text-base font-bold text-white">User Moderation & Account Control</h3>
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Block spam/abusive users and override forgotten passwords with 1-click.
-              </p>
-            </div>
-
-            {/* Search Box */}
-            <div className="relative w-full sm:w-64">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        {/* ================= TAB 2: USER MANAGEMENT & VERIFICATION ================= */}
+        {activeTab === 'users' && (
+          <div className="space-y-4">
+            {/* Search Input */}
+            <div className="relative max-w-md">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Search username or email..."
+                placeholder="Search by username, email, or mobile..."
                 value={userSearch}
                 onChange={(e) => setUserSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 rounded-xl glass-input text-xs text-white placeholder-slate-500"
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl glass-input text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
               />
             </div>
-          </div>
 
-          {loading ? (
-            <div className="py-12 flex justify-center">
-              <div className="w-6 h-6 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : filteredUsers.length === 0 ? (
-            <div className="py-8 text-center text-xs text-slate-400">
-              No matching accounts found.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-white/10 text-slate-400 font-mono uppercase text-[10px]">
-                    <th className="pb-3 px-3">User</th>
-                    <th className="pb-3 px-3">Role</th>
-                    <th className="pb-3 px-3">Songs Played</th>
-                    <th className="pb-3 px-3">Status</th>
-                    <th className="pb-3 px-3 text-right">Moderation Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {filteredUsers.map((u) => {
-                    const isSelf = u.username === 'ankit-ray' || u.email === 'ankitrayh6475@gmail.com';
-                    return (
-                      <tr key={u._id} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="py-3 px-3">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-7 h-7 rounded-full overflow-hidden bg-slate-800 border border-white/10 shrink-0">
-                              {u.avatar ? (
-                                <img src={u.avatar} alt={u.username} className="w-full h-full object-cover" />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center text-xs font-bold text-cyan-400 uppercase">
-                                  {u.username?.[0] || 'U'}
-                                </div>
+            <div className="rounded-2xl glass-card border border-white/10 overflow-hidden bg-slate-950/80">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-white/5 text-slate-400 uppercase font-mono text-[10px]">
+                    <tr>
+                      <th className="px-4 py-3">User & Contact</th>
+                      <th className="px-4 py-3">Role</th>
+                      <th className="px-4 py-3">Verification</th>
+                      <th className="px-4 py-3">Streams</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {filteredUsers.length > 0 ? (
+                      filteredUsers.map((u) => (
+                        <tr key={u._id} className="hover:bg-white/[0.02]">
+                          {/* User & Contact */}
+                          <td className="px-4 py-3">
+                            <div className="flex flex-col">
+                              <span className="font-bold text-white flex items-center gap-1.5">
+                                {u.username}
+                                {u.role === 'admin' && (
+                                  <span className="text-[10px] font-mono text-purple-400 bg-purple-500/10 px-1.5 rounded">ADMIN</span>
+                                )}
+                              </span>
+                              <span className="text-[11px] text-slate-400 font-mono">{u.email}</span>
+                              {u.phone && (
+                                <span className="text-[10px] text-slate-500 font-mono flex items-center gap-1 mt-0.5">
+                                  <Phone className="w-2.5 h-2.5" /> {u.phone}
+                                </span>
                               )}
                             </div>
-                            <div>
-                              <div className="font-bold text-white flex items-center gap-1.5">
-                                <span>{u.username}</span>
-                                {isSelf && (
-                                  <span className="px-1.5 py-0.2 rounded bg-cyan-500/20 border border-cyan-500/30 text-[9px] font-mono text-cyan-300">
-                                    YOU
-                                  </span>
-                                )}
-                              </div>
-                              <span className="text-[11px] text-slate-400">{u.email}</span>
-                            </div>
-                          </div>
-                        </td>
+                          </td>
 
-                        <td className="py-3 px-3 font-mono uppercase text-[10px]">
-                          <span className={`px-2 py-0.5 rounded border ${
-                            u.role === 'admin' 
-                              ? 'bg-cyan-500/20 border-cyan-500/30 text-cyan-300 font-bold'
-                              : u.role === 'artist'
-                              ? 'bg-purple-500/20 border-purple-500/30 text-purple-300'
-                              : 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300'
-                          }`}>
-                            {u.role}
-                          </span>
-                        </td>
+                          {/* Role Switcher */}
+                          <td className="px-4 py-3">
+                            <select
+                              value={u.role || 'user'}
+                              disabled={u.email === 'ankitrayh6475@gmail.com'}
+                              onChange={(e) => handleChangeRole(u, e.target.value)}
+                              className="px-2 py-1 rounded bg-slate-900 border border-white/10 text-xs font-mono text-cyan-300 focus:outline-none"
+                            >
+                              <option value="user">🎧 Listener</option>
+                              <option value="artist">🎙️ Artist</option>
+                              <option value="admin">⚡ Admin</option>
+                            </select>
+                          </td>
 
-                        <td className="py-3 px-3 font-mono font-bold text-emerald-400">
-                          {u.listenCount || 0} plays
-                        </td>
+                          {/* Verification 1-Click Toggle */}
+                          <td className="px-4 py-3">
+                            <button
+                              onClick={() => handleToggleVerify(u)}
+                              title="Click to toggle verified status"
+                              className={`inline-flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded-full border transition-all ${
+                                u.isVerified !== false
+                                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
+                                  : 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20'
+                              }`}
+                            >
+                              {u.isVerified !== false ? (
+                                <>
+                                  <CheckCircle className="w-3 h-3 text-emerald-400" />
+                                  <span>Verified ✅</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Clock className="w-3 h-3 text-amber-400" />
+                                  <span>Pending ⏳ (Click to Verify)</span>
+                                </>
+                              )}
+                            </button>
+                          </td>
 
-                        <td className="py-3 px-3">
-                          {u.isBlocked ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/20 border border-rose-500/40 text-rose-300 text-[10px] font-bold uppercase font-mono">
-                              <Ban className="w-3 h-3" /> Blocked
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold uppercase font-mono">
-                              <CheckCircle className="w-3 h-3" /> Active
-                            </span>
-                          )}
-                        </td>
+                          {/* Streams */}
+                          <td className="px-4 py-3 font-mono text-slate-300">
+                            {u.listenCount || 0}
+                          </td>
 
-                        <td className="py-3 px-3 text-right">
-                          {isSelf ? (
-                            <span className="text-[11px] text-slate-500 italic">Master Owner</span>
-                          ) : (
-                            <div className="inline-flex items-center gap-2">
-                              {/* Reset Password Button */}
+                          {/* Block Status */}
+                          <td className="px-4 py-3">
+                            {u.isBlocked ? (
+                              <span className="text-[10px] font-mono text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/30">
+                                Suspended
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                                Active
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Actions */}
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {/* Override Password */}
                               <button
                                 onClick={() => setResetModalUser(u)}
-                                className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-500/30 text-slate-300 hover:text-cyan-300 text-[11px] font-semibold flex items-center gap-1 transition-colors"
-                                title="Reset this user's password"
+                                title="Reset User Password"
+                                className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white"
                               >
-                                <KeyRound className="w-3 h-3" />
-                                <span>Reset Pass</span>
+                                <KeyRound className="w-4 h-4" />
                               </button>
 
-                              {/* Block / Unblock Toggle Button */}
-                              <button
-                                onClick={() => handleToggleBlock(u)}
-                                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 border transition-colors ${
-                                  u.isBlocked
-                                    ? 'bg-emerald-500/20 hover:bg-emerald-500/30 border-emerald-500/40 text-emerald-300'
-                                    : 'bg-rose-500/20 hover:bg-rose-500/30 border-rose-500/40 text-rose-300'
-                                }`}
-                              >
-                                <Ban className="w-3 h-3" />
-                                <span>{u.isBlocked ? 'Unblock' : 'Block'}</span>
-                              </button>
+                              {/* Block / Unblock */}
+                              {u.email !== 'ankitrayh6475@gmail.com' && (
+                                <>
+                                  <button
+                                    onClick={() => handleToggleBlock(u)}
+                                    title={u.isBlocked ? "Unblock user" : "Suspend user"}
+                                    className={`p-1.5 rounded-lg ${
+                                      u.isBlocked
+                                        ? 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30'
+                                        : 'bg-white/5 text-slate-400 hover:text-rose-400'
+                                    }`}
+                                  >
+                                    <Ban className="w-4 h-4" />
+                                  </button>
 
-                              {/* Permanent Delete User Button */}
-                              <button
-                                onClick={() => handleDeleteUser(u)}
-                                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 border bg-red-600/20 hover:bg-red-600/30 border-red-500/40 text-red-300 transition-colors"
-                                title="Permanently delete user from database"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                                <span>Delete</span>
-                              </button>
+                                  <button
+                                    onClick={() => handleDeleteUser(u)}
+                                    title="Permanently Delete User"
+                                    className="p-1.5 rounded-lg bg-white/5 hover:bg-rose-950/50 text-slate-400 hover:text-rose-400"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </>
+                              )}
                             </div>
-                          )}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                          No users matched search criteria.
                         </td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </GlassCard>
-
-        {/* 2-Column Grid: Top Listeners Leaderboard & Feedback Inquiries */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          
-          {/* Top Listeners Leaderboard */}
-          <GlassCard glowColor="emerald" className="p-6 border border-emerald-500/20 flex flex-col">
-            <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-4">
-              <div className="flex items-center gap-2">
-                <Trophy className="w-5 h-5 text-amber-400" />
-                <h3 className="text-base font-bold text-white">Top Active Listeners</h3>
+                    )}
+                  </tbody>
+                </table>
               </div>
-              <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20">
-                Ranked by Songs Played
+            </div>
+          </div>
+        )}
+
+        {/* ================= TAB 3: ARTIST TRACKS & MODERATION ================= */}
+        {activeTab === 'tracks' && (
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="relative max-w-md w-full">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search uploaded tracks by title or artist..."
+                  value={trackSearch}
+                  onChange={(e) => setTrackSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl glass-input text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                />
+              </div>
+
+              <span className="text-xs font-mono text-slate-400 self-end sm:self-auto">
+                Total Uploads: <strong className="text-white">{filteredTracks.length}</strong>
               </span>
             </div>
 
-            {loading ? (
-              <div className="py-12 flex justify-center">
-                <div className="w-6 h-6 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+            <div className="rounded-2xl glass-card border border-white/10 overflow-hidden bg-slate-950/80">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-white/5 text-slate-400 uppercase font-mono text-[10px]">
+                    <tr>
+                      <th className="px-4 py-3">Track Info</th>
+                      <th className="px-4 py-3">Artist / Uploader</th>
+                      <th className="px-4 py-3">Synced Lyrics</th>
+                      <th className="px-4 py-3">Upload Date</th>
+                      <th className="px-4 py-3 text-right">Moderation Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {filteredTracks.length > 0 ? (
+                      filteredTracks.map((t) => (
+                        <tr key={t._id} className="hover:bg-white/[0.02]">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              {/* Audio Play Preview */}
+                              <button
+                                onClick={() => playSong(t, filteredTracks)}
+                                title="Play Track Preview"
+                                className="w-9 h-9 rounded-lg bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-black flex items-center justify-center transition-colors shrink-0"
+                              >
+                                {(currentSong?._id === t._id && isPlaying) ? (
+                                  <Pause className="w-4 h-4 fill-current" />
+                                ) : (
+                                  <Play className="w-4 h-4 fill-current ml-0.5" />
+                                )}
+                              </button>
+                              <div className="min-w-0">
+                                <span className="font-bold text-white truncate block">
+                                  {t.title}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  ID: {t._id}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-3 font-mono text-slate-300">
+                            {t.artist?.username || 'Community Artist'} <br />
+                            <span className="text-[10px] text-slate-500">{t.artist?.email || ''}</span>
+                          </td>
+
+                          <td className="px-4 py-3 font-mono">
+                            {t.hasSyncedLyrics ? (
+                              <span className="text-emerald-400 text-[10px] bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                                Live Synced (.lrc)
+                              </span>
+                            ) : (
+                              <span className="text-slate-500 text-[10px]">Standard</span>
+                            )}
+                          </td>
+
+                          <td className="px-4 py-3 font-mono text-slate-400">
+                            {new Date(t.createdAt).toLocaleDateString()}
+                          </td>
+
+                          <td className="px-4 py-3 text-right">
+                            <button
+                              onClick={() => handleDeleteTrack(t)}
+                              title="Delete this track from AURA 3D"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500 text-rose-300 hover:text-white border border-rose-500/30 transition-all font-mono text-[11px]"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Delete Track</span>
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                          No uploaded tracks found.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
-            ) : (!stats?.topListeners || stats.topListeners.length === 0) ? (
-              <p className="text-xs text-slate-400 py-8 text-center">No listening records found yet.</p>
-            ) : (
-              <div className="space-y-2.5 overflow-x-auto">
-                {stats.topListeners.map((u, idx) => (
-                  <div
-                    key={u._id || idx}
-                    className="flex items-center justify-between p-3 rounded-xl bg-slate-900/60 border border-white/5 hover:border-emerald-500/30 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs ${
-                        idx === 0 ? 'bg-amber-400 text-black' :
-                        idx === 1 ? 'bg-slate-300 text-black' :
-                        idx === 2 ? 'bg-amber-700 text-white' :
-                        'bg-slate-800 text-slate-300'
-                      }`}>
-                        #{idx + 1}
-                      </div>
-                      <div className="w-8 h-8 rounded-full overflow-hidden bg-slate-800 border border-white/10 shrink-0">
-                        {u.avatar ? (
-                          <img src={u.avatar} alt={u.username} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-xs font-bold text-emerald-400 uppercase">
-                            {u.username[0]}
-                          </div>
-                        )}
-                      </div>
+            </div>
+          </div>
+        )}
+
+        {/* ================= TAB 4: USER FEEDBACK & RECOVERY ================= */}
+        {activeTab === 'feedback' && (
+          <div className="space-y-4">
+            <div className="rounded-2xl glass-card border border-white/10 overflow-hidden bg-slate-950/80">
+              <div className="p-4 border-b border-white/10">
+                <h3 className="text-sm font-bold text-white">Platform Feedback & Account Recovery Requests</h3>
+                <p className="text-xs text-slate-400">Direct user messages submitted via the in-app support modal.</p>
+              </div>
+
+              <div className="divide-y divide-white/5">
+                {(stats?.recentFeedbacks || []).length > 0 ? (
+                  stats.recentFeedbacks.map((fb) => (
+                    <div key={fb._id} className="p-4 hover:bg-white/[0.02] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-white">{u.username}</span>
-                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-white/5 border border-white/10 text-slate-400 uppercase font-mono">
-                            {u.role}
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-bold text-white text-xs">{fb.name}</span>
+                          <span className="text-xs font-mono text-cyan-400">({fb.email})</span>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/5 text-slate-400">
+                            {fb.subject}
                           </span>
                         </div>
-                        <span className="text-[11px] text-slate-400">{u.email}</span>
+                        <p className="text-xs text-slate-300 leading-relaxed font-sans">{fb.message}</p>
+                        <span className="text-[10px] text-slate-500 font-mono mt-1 block">
+                          Received on {new Date(fb.createdAt).toLocaleString()}
+                        </span>
                       </div>
-                    </div>
 
-                    <div className="text-right">
-                      <div className="text-sm font-black text-emerald-400 font-mono">
-                        {u.listenCount || 0} plays
-                      </div>
-                      <div className="text-[10px] text-slate-400 flex items-center gap-1 justify-end">
-                        <Clock className="w-3 h-3" />
-                        <span>{u.lastLogin ? new Date(u.lastLogin).toLocaleDateString() : 'Active'}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </GlassCard>
-
-          {/* User Inquiries & Feedback Section */}
-          <GlassCard glowColor="purple" className="p-6 border border-purple-500/20 flex flex-col">
-            <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-4">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="w-5 h-5 text-purple-400" />
-                <h3 className="text-base font-bold text-white">Direct Issues & Feedback</h3>
-              </div>
-              <span className="text-xs text-slate-400">
-                Inbox
-              </span>
-            </div>
-
-            {loading ? (
-              <div className="py-12 flex justify-center">
-                <div className="w-6 h-6 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
-              </div>
-            ) : (!stats?.recentFeedbacks || stats.recentFeedbacks.length === 0) ? (
-              <div className="py-8 text-center text-xs text-slate-400">
-                No feedback or complaints submitted yet. Everything is running smoothly!
-              </div>
-            ) : (
-              <div className="space-y-3 overflow-y-auto max-h-[400px] pr-1">
-                {stats.recentFeedbacks.map((fb) => (
-                  <div
-                    key={fb._id}
-                    className="p-3.5 rounded-2xl bg-slate-900/80 border border-white/10 flex flex-col gap-2"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-white">{fb.name}</span>
-                        <span className="text-[10px] font-mono text-cyan-400">({fb.email})</span>
-                      </div>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono uppercase ${
-                        fb.status === 'resolved' 
-                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                          : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                      }`}>
-                        {fb.status}
-                      </span>
-                    </div>
-
-                    <div className="text-xs font-semibold text-slate-200">{fb.subject}</div>
-                    <p className="text-xs text-slate-300 whitespace-pre-wrap leading-relaxed">
-                      "{fb.message}"
-                    </p>
-
-                    <div className="flex items-center justify-between pt-1 border-t border-white/5">
-                      <span className="text-[10px] text-slate-400">
-                        {new Date(fb.createdAt).toLocaleDateString()}
-                      </span>
-                      {fb.status !== 'resolved' && (
-                        <button
-                          onClick={() => handleUpdateFeedbackStatus(fb._id, 'resolved')}
-                          className="px-2 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-[10px] font-semibold flex items-center gap-1 transition-colors"
+                      <div className="flex items-center gap-2 shrink-0">
+                        <select
+                          value={fb.status || 'pending'}
+                          onChange={(e) => handleUpdateFeedbackStatus(fb._id, e.target.value)}
+                          className="px-2.5 py-1 rounded-lg bg-slate-900 border border-white/10 text-xs font-mono text-emerald-400 focus:outline-none"
                         >
-                          <CheckCircle2 className="w-3 h-3" />
-                          <span>Mark Resolved</span>
-                        </button>
-                      )}
+                          <option value="pending">⏳ Pending</option>
+                          <option value="in-review">🔍 In Review</option>
+                          <option value="resolved">✅ Resolved</option>
+                        </select>
+                      </div>
                     </div>
+                  ))
+                ) : (
+                  <div className="p-8 text-center text-slate-500 text-xs">
+                    No support tickets or feedback messages yet.
                   </div>
-                ))}
+                )}
               </div>
-            )}
-          </GlassCard>
-
-        </div>
+            </div>
+          </div>
+        )}
 
       </main>
 
-      {/* Admin Password Reset Modal */}
+      {/* ================= MODAL: ADMIN PASSWORD OVERRIDE ================= */}
       {resetModalUser && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="relative w-full max-w-md animate-fade-in">
-            <GlassCard glowColor="cyan" className="p-6 border border-cyan-500/30 bg-slate-950/95 shadow-2xl">
-              <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
-                <div className="flex items-center gap-2">
-                  <KeyRound className="w-5 h-5 text-cyan-400" />
-                  <h3 className="text-sm font-bold text-white">
-                    Reset Password for {resetModalUser.username}
-                  </h3>
-                </div>
-                <button
-                  onClick={() => setResetModalUser(null)}
-                  className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-white/5"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="relative w-full max-w-sm rounded-2xl glass-card border border-white/15 bg-slate-950 p-6 shadow-2xl">
+            <button
+              onClick={() => setResetModalUser(null)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-2 mb-3">
+              <KeyRound className="w-5 h-5 text-emerald-400" />
+              <h3 className="text-base font-bold text-white">Override User Password</h3>
+            </div>
+
+            <p className="text-xs text-slate-300 mb-4">
+              Enter a new password for <strong className="text-white">{resetModalUser.username}</strong> ({resetModalUser.email}).
+            </p>
+
+            {resetMsg && (
+              <div className="mb-4 p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs">
+                {resetMsg}
+              </div>
+            )}
+
+            <form onSubmit={handleAdminResetPassword} className="space-y-4">
+              <div>
+                <label className="block text-xs font-mono text-slate-400 mb-1">New Password (Min 6 chars)</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="New password..."
+                  value={resetNewPass}
+                  onChange={(e) => setResetNewPass(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl glass-input text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                />
               </div>
 
-              {resetMsg ? (
-                <div className="py-6 text-center text-emerald-400 text-xs font-bold">
-                  <CheckCircle className="w-10 h-10 mx-auto mb-2 animate-bounce" />
-                  {resetMsg}
-                </div>
-              ) : (
-                <form onSubmit={handleAdminResetPassword} className="space-y-3">
-                  <p className="text-xs text-slate-300">
-                    As platform administrator, enter a new password for <strong className="text-white">{resetModalUser.email}</strong>.
-                  </p>
-
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">New Password</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Enter new password (min 6 chars)"
-                      value={resetNewPass}
-                      onChange={(e) => setResetNewPass(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl glass-input text-xs text-white placeholder-slate-500 font-mono"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-end gap-2 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setResetModalUser(null)}
-                      className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-medium"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={resetLoading}
-                      className="px-4 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black text-xs font-bold uppercase transition-all disabled:opacity-50"
-                    >
-                      {resetLoading ? 'Updating...' : 'Save Password'}
-                    </button>
-                  </div>
-                </form>
-              )}
-            </GlassCard>
+              <button
+                type="submit"
+                disabled={resetLoading}
+                className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-all"
+              >
+                {resetLoading ? "Updating..." : "Update Password"}
+              </button>
+            </form>
           </div>
         </div>
       )}

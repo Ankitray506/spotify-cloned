@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+
+Sitemap: https://scintillating-fenglisu-27b519.netlify.app/sitemap.xml

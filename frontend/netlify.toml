@@ -2,6 +2,10 @@
   publish = "dist"
   command = "npm run build"
 
+[build.environment]
+  NETLIFY_COLLABORATIVE_DRAFT = "false"
+  NETLIFY_DRAWER_ENABLED = "false"
+
 [[redirects]]
   from = "/api/*"
   to = "https://aura-3d-backend.onrender.com/api/:splat"

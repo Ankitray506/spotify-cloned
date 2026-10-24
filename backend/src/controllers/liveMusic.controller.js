@@ -275,13 +275,35 @@ async function getGenreSongs(req, res) {
     }
 }
 
-// ================= 3. GET TOP TRENDING HITS =================
+// ================= 3. GET TOP TRENDING HITS (DYNAMIC DAILY & ROTATING) =================
+const TRENDING_SEED_QUERIES = [
+    'trending hindi chartbusters',
+    'bollywood romantic blockbuster',
+    'top hits india viral',
+    'arijit singh trending hits',
+    'punjabi viral hits dhol',
+    'latest hindi blockbusters 2026',
+    'sidhu moosewala classics',
+    'anirudh ravichander pan india',
+    'atif aslam evergreen melodies',
+    'karan aujla superhit songs',
+    'shilpi raj bhojpuri trending',
+    'kumar sanu 90s romantic hits'
+];
+
 async function getTrending(req, res) {
     try {
-        const queries = ['trending hindi', 'bollywood romantic hits', 'top hits india'];
-        const fetchPromises = queries.map(async (q) => {
+        const seedParam = parseInt(req.query.seed, 10) || 0;
+        const page = parseInt(req.query.page, 10) || 1;
+        
+        // Dynamic rotating queries based on day of month + user refresh seed
+        const dayOfMonth = new Date().getDate();
+        const shuffledPool = [...TRENDING_SEED_QUERIES].sort(() => 0.5 - Math.random());
+        const selectedQueries = shuffledPool.slice(0, 3);
+
+        const fetchPromises = selectedQueries.map(async (q) => {
             try {
-                const url = `https://www.jiosaavn.com/api.php?__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&n=12&p=1&q=${encodeURIComponent(q)}`;
+                const url = `https://www.jiosaavn.com/api.php?__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&n=12&p=${page}&q=${encodeURIComponent(q)}`;
                 const response = await fetch(url, {
                     headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
                 });
@@ -303,8 +325,15 @@ async function getTrending(req, res) {
 
         const results = deduplicateSongs(combined, 1);
 
+        const todayFormatted = new Date().toLocaleDateString('en-IN', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+        });
+
         return res.status(200).json({
             message: "Trending hits fetched",
+            date: todayFormatted,
             total: results.length,
             songs: results
         });

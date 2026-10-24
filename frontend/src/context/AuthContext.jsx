@@ -48,26 +48,55 @@ export function AuthProvider({ children }) {
     initAuth();
   }, []);
 
-  // Register
-  const register = async (username, email, password, role = 'user') => {
+  // Register with Phone, Email, Password & Role (No manual username required)
+  const register = async ({ phone, email, password, role = 'user' }) => {
     const res = await axiosClient.post('/auth/register', {
-      username,
+      phone,
       email,
       password,
       role
     });
+    return res.data;
+  };
 
-    // If requiresLogin is true, do not store token yet
+  // Verify Email OTP (Activates account and logs user in)
+  const verifyOtp = async (email, otp) => {
+    const res = await axiosClient.post('/auth/verify-otp', {
+      email,
+      otp
+    });
     const { token: receivedToken, user: receivedUser } = res.data;
     if (receivedToken) {
       localStorage.setItem('token', receivedToken);
       localStorage.removeItem('aura_guest_play_count');
       setToken(receivedToken);
-      if (receivedUser) {
-        localStorage.setItem('user', JSON.stringify(receivedUser));
-        setUser(receivedUser);
-      }
     }
+    if (receivedUser) {
+      localStorage.setItem('user', JSON.stringify(receivedUser));
+      setUser(receivedUser);
+    }
+    return res.data;
+  };
+
+  // Resend OTP
+  const resendOtp = async (email) => {
+    const res = await axiosClient.post('/auth/resend-otp', { email });
+    return res.data;
+  };
+
+  // Forgot password request OTP
+  const forgotPasswordRequest = async (email) => {
+    const res = await axiosClient.post('/auth/forgot-password-request', { email });
+    return res.data;
+  };
+
+  // Reset password with OTP
+  const resetPasswordWithOtp = async (email, otp, newPassword) => {
+    const res = await axiosClient.post('/auth/forgot-password-reset', {
+      email,
+      otp,
+      newPassword
+    });
     return res.data;
   };
 
@@ -81,18 +110,21 @@ export function AuthProvider({ children }) {
     return res.data;
   };
 
-  // Login
-  const login = async (usernameOrEmail, password) => {
-    const payload = usernameOrEmail.includes('@')
-      ? { email: usernameOrEmail, password }
-      : { username: usernameOrEmail, password };
+  // Login (Email, Phone, or Username supported)
+  const login = async (identifier, password) => {
+    const payload = {
+      username: identifier,
+      email: identifier,
+      phone: identifier,
+      password
+    };
 
     const res = await axiosClient.post('/auth/login', payload);
     const { token: receivedToken, user: receivedUser } = res.data;
 
     if (receivedToken) {
       localStorage.setItem('token', receivedToken);
-      localStorage.removeItem('aura_guest_play_count'); // Clear guest playback count for full access
+      localStorage.removeItem('aura_guest_play_count');
       setToken(receivedToken);
     }
     if (receivedUser) {
@@ -131,6 +163,10 @@ export function AuthProvider({ children }) {
         isAdmin,
         login,
         register,
+        verifyOtp,
+        resendOtp,
+        forgotPasswordRequest,
+        resetPasswordWithOtp,
         updateProfile,
         logout,
         setUser

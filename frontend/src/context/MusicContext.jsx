@@ -52,10 +52,20 @@ export function MusicProvider({ children }) {
   const sourceNodeRef = useRef(null);
   const frequencyDataRef = useRef(new Uint8Array(64));
 
-  // Initialize Web Audio API on first user gesture
+  // Initialize Web Audio API on first user gesture (Optimized for Mobile & Desktop)
   const initAudioAnalyser = useCallback(() => {
     if (audioContextRef.current) return;
     try {
+      // Mobile device detection: On Android & iOS browsers, Web Audio API resampling causes buffer crackle/distortion.
+      // Bypassing AudioContext routing allows direct native hardware audio decoding for 100% clean, stutter-free sound!
+      const isMobile = typeof navigator !== 'undefined' && 
+        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+      if (isMobile) {
+        console.log("📱 Mobile audio optimization active: hardware-accelerated playback without buffer distortion");
+        return;
+      }
+
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       if (!AudioContextClass) return;
 
@@ -288,8 +298,11 @@ export function MusicProvider({ children }) {
       localStorage.setItem('aura_guest_play_count', String(newGuestCount));
       setGuestPlaysCount(newGuestCount);
     } else {
-      // Authenticated user: track play in backend database
+      // Authenticated user: track play and genre taste in backend MongoDB
       axiosClient.post('/auth/record-listen').catch(() => {});
+      if (song.genre || song.album) {
+        axiosClient.post('/auth/taste', { genre: song.genre || song.album }).catch(() => {});
+      }
     }
 
     initAudioAnalyser();

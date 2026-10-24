@@ -48,17 +48,99 @@ export default function BottomPlayerBar() {
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 px-2 sm:px-4 pb-2 sm:pb-3 pointer-events-none">
-      <div className="max-w-7xl mx-auto rounded-2xl glass-card backdrop-blur-2xl border border-white/15 bg-slate-950/85 p-3 sm:p-4 shadow-[0_-10px_40px_rgba(0,0,0,0.6)] pointer-events-auto">
-        <div className="flex items-center justify-between gap-2 sm:gap-6">
+      <div className="max-w-7xl mx-auto rounded-2xl glass-card backdrop-blur-2xl border border-white/15 bg-slate-950/90 p-2.5 sm:p-4 shadow-[0_-10px_40px_rgba(0,0,0,0.7)] pointer-events-auto overflow-hidden relative">
+        
+        {/* Sleek Mobile Micro Progress Bar (Top of player card) */}
+        <div className="sm:hidden absolute top-0 left-0 right-0 h-1 bg-white/10">
+          <div
+            className="h-full bg-gradient-to-r from-emerald-400 to-cyan-400 transition-all duration-200"
+            style={{ width: `${isNaN(progressPercent) ? 0 : progressPercent}%` }}
+          />
+        </div>
+
+        {/* ================= MOBILE VIEW (< sm) ================= */}
+        <div className="flex sm:hidden items-center justify-between gap-2 pt-1">
+          {/* Left: Thumbnail & Song Info */}
+          <div
+            className="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer"
+            onClick={toggleFullscreen3D}
+          >
+            <div className="relative w-11 h-11 rounded-lg overflow-hidden shrink-0 shadow-md border border-white/10 bg-slate-900">
+              <img src={cover} alt={currentSong.title} className="w-full h-full object-cover" />
+              {isPlaying && (
+                <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                  <Disc3 className="w-4 h-4 text-emerald-400 animate-spin" />
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col min-w-0">
+              <span className="text-xs font-bold text-white truncate">
+                {currentSong.title}
+              </span>
+              <span className="text-[10px] text-slate-400 truncate">
+                {artistName}
+              </span>
+            </div>
+          </div>
+
+          {/* Right: Quick Touch Controls */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Heart */}
+            <button
+              onClick={() => toggleLike(currentSong)}
+              title={isLiked ? "Unlike" : "Like Song"}
+              className={`p-2 rounded-full transition-colors ${
+                isLiked ? 'text-rose-500' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
+            </button>
+
+            {/* Lyrics Button */}
+            <button
+              onClick={toggleLyrics}
+              title="Lyrics"
+              className={`p-2 rounded-full transition-colors ${
+                isLyricsOpen ? 'text-cyan-400 bg-cyan-500/20' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Mic2 className="w-4 h-4" />
+            </button>
+
+            {/* Play/Pause */}
+            <button
+              onClick={togglePlay}
+              className="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 text-black flex items-center justify-center shadow-md shadow-emerald-500/30 active:scale-95"
+            >
+              {isPlaying ? (
+                <Pause className="w-4 h-4 fill-current" />
+              ) : (
+                <Play className="w-4 h-4 fill-current ml-0.5" />
+              )}
+            </button>
+
+            {/* Next Track */}
+            <button
+              onClick={nextSong}
+              title="Next"
+              className="p-1.5 text-slate-300 hover:text-white"
+            >
+              <SkipForward className="w-4 h-4 fill-current" />
+            </button>
+          </div>
+        </div>
+
+        {/* ================= DESKTOP & TABLET VIEW (>= sm) ================= */}
+        <div className="hidden sm:flex items-center justify-between gap-4 lg:gap-6">
           
-          {/* Left: Track Details with Spinning Vinyl */}
-          <div className="flex items-center gap-3 min-w-0 max-w-[200px] sm:max-w-[280px]">
-            <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-xl overflow-hidden shrink-0 shadow-lg border border-white/10 group cursor-pointer" onClick={toggleFullscreen3D}>
-              <img
-                src={cover}
-                alt={currentSong.title}
-                className="w-full h-full object-cover"
-              />
+          {/* Left: Track Details */}
+          <div className="flex items-center gap-3 min-w-0 max-w-[240px] lg:max-w-[280px]">
+            <div
+              className="relative w-12 h-12 lg:w-14 lg:h-14 rounded-xl overflow-hidden shrink-0 shadow-lg border border-white/10 group cursor-pointer"
+              onClick={toggleFullscreen3D}
+            >
+              <img src={cover} alt={currentSong.title} className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                 <Maximize2 className="w-5 h-5 text-white" />
               </div>
@@ -73,7 +155,10 @@ export default function BottomPlayerBar() {
 
             <div className="flex flex-col min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="text-sm font-bold text-white truncate hover:underline cursor-pointer" onClick={toggleFullscreen3D}>
+                <span
+                  className="text-sm font-bold text-white truncate hover:underline cursor-pointer"
+                  onClick={toggleFullscreen3D}
+                >
                   {currentSong.title}
                 </span>
                 {isCached && (
@@ -100,8 +185,8 @@ export default function BottomPlayerBar() {
           </div>
 
           {/* Center: Controls & Timeline Scrubber */}
-          <div className="flex-1 max-w-2xl flex flex-col items-center gap-1.5">
-            <div className="flex items-center gap-3 sm:gap-6">
+          <div className="flex-1 max-w-xl flex flex-col items-center gap-1.5">
+            <div className="flex items-center gap-4 lg:gap-6">
               <button
                 onClick={toggleShuffle}
                 title="Shuffle"
@@ -123,7 +208,7 @@ export default function BottomPlayerBar() {
               <button
                 onClick={togglePlay}
                 title={isPlaying ? "Pause" : "Play"}
-                className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 text-black flex items-center justify-center hover:scale-105 active:scale-95 shadow-lg shadow-emerald-500/30 transition-transform"
+                className="w-10 h-10 lg:w-11 lg:h-11 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 text-black flex items-center justify-center hover:scale-105 active:scale-95 shadow-lg shadow-emerald-500/30 transition-transform"
               >
                 {isPlaying ? (
                   <Pause className="w-5 h-5 fill-current" />
@@ -205,7 +290,7 @@ export default function BottomPlayerBar() {
               }`}
             >
               <Mic2 className="w-4 h-4 text-cyan-400" />
-              <span className="hidden sm:inline">Lyrics</span>
+              <span className="hidden lg:inline">Lyrics</span>
             </button>
 
             {/* 3D Turntable Launcher Button */}
@@ -215,7 +300,7 @@ export default function BottomPlayerBar() {
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500/20 via-teal-500/20 to-cyan-500/20 hover:from-emerald-500/30 hover:to-cyan-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-mono font-bold tracking-wider uppercase transition-all hover:scale-105 shadow-md shadow-emerald-500/20"
             >
               <Disc3 className={`w-4 h-4 text-emerald-400 ${isPlaying ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">3D Stage</span>
+              <span className="hidden lg:inline">3D Stage</span>
             </button>
           </div>
 

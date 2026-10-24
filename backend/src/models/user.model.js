@@ -5,11 +5,19 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: true,
         unique: true,
+        trim: true,
     },
     email: {
         type: String,
         required: true,
         unique: true,
+        trim: true,
+        lowercase: true,
+    },
+    phone: {
+        type: String,
+        default: "",
+        trim: true,
     },
     password: {
         type: String,
@@ -19,6 +27,20 @@ const userSchema = new mongoose.Schema({
         type: String,
         enum: [ 'user', 'artist', 'admin' ],
         default: 'user',
+    },
+    isVerified: {
+        type: Boolean,
+        default: false,
+    },
+    otp: {
+        code: {
+            type: String,
+            default: "",
+        },
+        expiresAt: {
+            type: Date,
+            default: null,
+        }
     },
     isBlocked: {
         type: Boolean,
