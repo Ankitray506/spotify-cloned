@@ -54,6 +54,10 @@ const visitorSchema = new mongoose.Schema({
     }
 }, { timestamps: true });
 
+// Auto-cleanup: MongoDB automatically purges guest visitor records older than 30 days
+// This guarantees database storage NEVER fills up or exceeds limits!
+visitorSchema.index({ lastVisitedAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
+
 const visitorModel = mongoose.model('visitor', visitorSchema);
 
 module.exports = visitorModel;
