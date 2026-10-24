@@ -108,8 +108,10 @@ async function registerUser(req, res) {
                 existingUser.otp = { code: otpCode, expiresAt: otpExpires };
                 await existingUser.save();
 
-                // Send OTP Email
-                await sendOtpEmail(cleanEmail, otpCode, 'registration');
+                // Send OTP Email in background (non-blocking for instant response)
+                sendOtpEmail(cleanEmail, otpCode, 'registration').catch(e => {
+                    console.warn("[BG EMAIL ERROR]:", e.message);
+                });
 
                 return res.status(200).json({
                     message: "Verification OTP resent to your email. Please verify to activate your account.",
@@ -142,16 +144,17 @@ async function registerUser(req, res) {
             lastLogin: new Date()
         });
 
-        // Send instant 6-digit OTP Email
-        const emailResult = await sendOtpEmail(cleanEmail, otpCode, 'registration');
+        // Send instant 6-digit OTP Email in background (non-blocking for instant response)
+        sendOtpEmail(cleanEmail, otpCode, 'registration').catch(e => {
+            console.warn("[BG EMAIL ERROR]:", e.message);
+        });
 
         return res.status(201).json({
             message: "Account created! A 6-digit verification code has been sent to your email.",
             requiresOtp: true,
             email: cleanEmail,
             username: newUser.username,
-            role: newUser.role,
-            simulatedOtp: emailResult.simulated ? otpCode : undefined
+            role: newUser.role
         });
 
     } catch (error) {
@@ -262,7 +265,10 @@ async function resendOtp(req, res) {
         };
         await user.save();
 
-        await sendOtpEmail(cleanEmail, newOtp, 'registration');
+        // Send in background non-blocking
+        sendOtpEmail(cleanEmail, newOtp, 'registration').catch(e => {
+            console.warn("[BG EMAIL ERROR]:", e.message);
+        });
 
         return res.status(200).json({
             message: "New 6-digit verification code sent to your email!"
@@ -303,7 +309,10 @@ async function forgotPasswordRequest(req, res) {
         };
         await user.save();
 
-        await sendOtpEmail(user.email, otpCode, 'forgot-password');
+        // Send in background non-blocking for instant client response (<100ms)
+        sendOtpEmail(user.email, otpCode, 'forgot-password').catch(e => {
+            console.warn("[BG EMAIL ERROR]:", e.message);
+        });
 
         return res.status(200).json({
             message: `Password reset code sent to ${user.email}. Enter the 6-digit code to choose a new password.`,

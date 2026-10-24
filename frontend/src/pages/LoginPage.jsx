@@ -155,7 +155,7 @@ export default function LoginPage() {
         setSuccessMessage("A verification code has been sent to your email.");
       } catch (err) {
         console.error("Register Error:", err);
-        setError(err.response?.data?.message || "Registration failed. Please check your details.");
+        setError(err.response?.data?.message || "Registration connection error. Please try again.");
       } finally {
         setLoading(false);
       }
@@ -230,7 +230,7 @@ export default function LoginPage() {
       setForgotSuccess(res.message || "Reset code sent to your email!");
       setForgotStep(2);
     } catch (err) {
-      setForgotError(err.response?.data?.message || "Failed to find account with that email");
+      setForgotError(err.response?.data?.message || "Connection timeout while requesting reset code. Please try again.");
     } finally {
       setForgotLoading(false);
     }

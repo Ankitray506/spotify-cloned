@@ -13,11 +13,19 @@ function getTransporter() {
 
     if (!transporter) {
         transporter = nodemailer.createTransport({
-            service: 'gmail',
+            host: 'smtp.gmail.com',
+            port: 465,
+            secure: true,
+            pool: true,
+            maxConnections: 5,
+            maxMessages: 100,
             auth: {
                 user: user.trim(),
                 pass: pass.trim()
-            }
+            },
+            connectionTimeout: 6000,
+            greetingTimeout: 5000,
+            socketTimeout: 8000
         });
     }
 
