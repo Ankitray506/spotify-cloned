@@ -4,8 +4,8 @@ const nodemailer = require('nodemailer');
 let transporter = null;
 
 function getTransporter() {
-    const user = process.env.EMAIL_USER || process.env.GMAIL_USER;
-    const pass = process.env.EMAIL_PASS || process.env.GMAIL_APP_PASSWORD;
+    const user = process.env.EMAIL_USER || process.env.GMAIL_USER || 'ar0015902@gmail.com';
+    const pass = process.env.EMAIL_PASS || process.env.GMAIL_APP_PASSWORD || 'cyevtcclvvardlxt';
 
     if (!user || !pass) {
         return null;
@@ -88,8 +88,9 @@ async function sendOtpEmail(toEmail, otp, purpose = 'registration') {
     }
 
     try {
+        const senderEmail = process.env.EMAIL_USER || process.env.GMAIL_USER || 'ar0015902@gmail.com';
         const info = await transport.sendMail({
-            from: `"AURA 3D Music" <${process.env.EMAIL_USER || process.env.GMAIL_USER}>`,
+            from: `"AURA 3D Music" <${senderEmail}>`,
             to: toEmail,
             subject: subject,
             html: htmlContent
